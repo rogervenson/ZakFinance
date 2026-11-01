@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { coverageYears, summarizeMonth, type DashTx } from "@/domain/dashboard";
+import { coverageYears, latestPatrimony, summarizeMonth, type DashTx } from "@/domain/dashboard";
 
 const tx = (over: Partial<DashTx>): DashTx => ({
   type: "EXPENSE",
@@ -69,4 +69,15 @@ describe("summarizeMonth", () => {
 test("coverageYears", () => {
   expect(coverageYears(120000000, 1000000)).toBeCloseTo(10);
   expect(coverageYears(100, 0)).toBeNull();
+});
+
+test("latestPatrimony carries each asset class forward to its latest value", () => {
+  const snaps = [
+    { month: "2026-10", assetClass: "Previdência", valueCents: 300 },
+    { month: "2026-10", assetClass: "Ações", valueCents: 100 },
+    { month: "2026-11", assetClass: "Ações", valueCents: 120 },
+    { month: "2026-09", assetClass: "Previdência", valueCents: 250 },
+  ];
+  expect(latestPatrimony(snaps)).toEqual({ month: "2026-11", cents: 420 });
+  expect(latestPatrimony([])).toBeNull();
 });

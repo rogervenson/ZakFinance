@@ -79,3 +79,18 @@ export function coverageYears(patrimonyCents: number, monthlyCostCents: number):
   if (monthlyCostCents <= 0) return null;
   return patrimonyCents / (monthlyCostCents * 12);
 }
+
+/**
+ * Patrimônio atual: o valor mais recente de cada classe de ativo (classes que não
+ * foram atualizadas no último mês entram com o último valor conhecido).
+ */
+export function latestPatrimony(snapshots: { month: string; assetClass: string; valueCents: number }[]): { month: string; cents: number } | null {
+  if (snapshots.length === 0) return null;
+  const latest = new Map<string, { month: string; valueCents: number }>();
+  for (const s of snapshots) {
+    const cur = latest.get(s.assetClass);
+    if (!cur || s.month > cur.month) latest.set(s.assetClass, s);
+  }
+  const values = [...latest.values()];
+  return { month: values.map((v) => v.month).sort().at(-1)!, cents: values.reduce((sum, v) => sum + v.valueCents, 0) };
+}

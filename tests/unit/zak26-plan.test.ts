@@ -57,6 +57,7 @@ describe("planZakImport", () => {
 
   test("past month with credit rows gets a paid invoice transfer on the due date", () => {
     expect(byKey("ZAK26:fatura:2026-10")).toMatchObject({
+      description: "Pagamento fatura out/2026",
       type: "TRANSFER",
       accountId: "chk",
       toAccountId: "card",

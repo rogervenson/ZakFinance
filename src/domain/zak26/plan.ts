@@ -1,7 +1,7 @@
 // Mapeamento puro: linhas lidas da Zak26 → lançamentos a criar.
 import { invoiceDates } from "@/domain/invoices";
 import { normalizeDescription } from "@/domain/suggest";
-import { monthStart } from "@/lib/months";
+import { monthLabel, monthStart } from "@/lib/months";
 import type { BlockId } from "./layout";
 import type { ZakParse, ZakRow } from "./parse";
 
@@ -125,7 +125,7 @@ export function planZakImport(parse: ZakParse, ctx: PlanContext): PlannedTx[] {
       type: "TRANSFER",
       date: dueDate,
       month,
-      description: `Pagamento fatura ${month}`,
+      description: `Pagamento fatura ${monthLabel(month)}`,
       amountCents: total,
       accountId: ctx.accounts.checking,
       toAccountId: ctx.accounts.card,
