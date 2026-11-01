@@ -39,3 +39,21 @@ test("same store and date but clearly different amounts are different purchases"
   const series = detectSeries(parseZak26([a("Set"), a("Out")], { year: 2026, lastMonth: "2026-11" }).rows);
   expect(series.map((s) => s.installmentCents).sort((x, y) => x - y)).toEqual([5150, 30890]);
 });
+
+test("a row with a mistyped date that fills a gap in the sequence joins the series", () => {
+  const fab = (name: string, cents: number, date: string) => monthSheet(name, { A316: "Fabrica de compensados", B316: cents, C316: d(date) }, { 332: cents });
+  const { rows } = parseZak26([fab("Mar", 433.24, "2026-02-17"), fab("Abr", 433.24, "2026-04-02"), fab("Mai", 433.22, "2026-02-17"), fab("Jun", 433.22, "2026-02-17")], {
+    year: 2026,
+    lastMonth: "2026-11",
+  });
+  const series = detectSeries(rows);
+  expect(series).toHaveLength(1);
+  expect(series[0].months).toEqual(["2026-03", "2026-04", "2026-05", "2026-06"]);
+  expect(series[0].purchaseDate).toEqual(d("2026-02-17"));
+});
+
+test("an unrelated purchase far from the sequence does not join", () => {
+  const fab = (name: string, date: string) => monthSheet(name, { A316: "koerich", B316: 37.9, C316: d(date) }, { 332: 37.9 });
+  const { rows } = parseZak26([fab("Mar", "2026-03-23"), fab("Abr", "2026-03-23"), fab("Set", "2026-09-01")], { year: 2026, lastMonth: "2026-11" });
+  expect(detectSeries(rows)[0].months).toEqual(["2026-03", "2026-04"]);
+});

@@ -195,17 +195,29 @@ export async function confirmZakImport(file: Buffer, currentMonth: string = curr
   return { created: todo.length, skipped: existing.size };
 }
 
-/** Séries detectadas na última importação que ainda não viraram parcelamento. */
+/**
+ * Compras parceladas ainda não confirmadas: recalculadas a partir das compras no
+ * cartão vindas da planilha que ainda não pertencem a nenhum parcelamento.
+ */
 export async function listPendingSeries(): Promise<SeriesCandidate[]> {
-  const run = await db.importRun.findFirst({ where: { kind: "ZAK26" }, orderBy: { createdAt: "desc" } });
-  if (!run) return [];
-  const series = ((run.report as unknown as ZakPreview).series ?? []).map((s) => ({ ...s, purchaseDate: new Date(s.purchaseDate) }));
-  const firstKeys = series.map((s) => s.importKeys[0]);
-  const linked = await db.transaction.findMany({ where: { importKey: { in: firstKeys }, installmentPlanId: { not: null } }, select: { importKey: true } });
-  const done = new Set(linked.map((l) => l.importKey));
-  const present = await db.transaction.findMany({ where: { importKey: { in: firstKeys } }, select: { importKey: true } });
-  const exists = new Set(present.map((p) => p.importKey));
-  return series.filter((s) => exists.has(s.importKeys[0]) && !done.has(s.importKeys[0]));
+  const rows = await db.transaction.findMany({
+    where: { source: "ZAK26", type: "EXPENSE", invoiceId: { not: null }, installmentPlanId: null, importKey: { startsWith: "ZAK26:" } },
+    select: { importKey: true, month: true, description: true, amountCents: true, date: true },
+  });
+  return detectSeries(
+    rows
+      .filter((r) => /^ZAK26:[^:]+:B\d+$/.test(r.importKey!))
+      .map((r) => ({
+        importKey: r.importKey!,
+        row: Number(r.importKey!.split(":B")[1]),
+        month: r.month,
+        description: r.description,
+        cents: r.amountCents,
+        date: r.date,
+        dateIssue: false,
+        payment: "CREDITO" as const,
+      })),
+  );
 }
 
 const monthDiff = (a: string, b: string) => (Number(b.slice(0, 4)) - Number(a.slice(0, 4))) * 12 + Number(b.slice(5)) - Number(a.slice(5));
