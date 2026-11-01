@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { installmentMonths, invoiceDates, invoiceMonthFor, splitInstallments } from "@/domain/invoices";
+import { futureCommittedCents, installmentMonths, invoiceDates, invoiceDisplayStatus, invoiceMonthFor, splitInstallments } from "@/domain/invoices";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -31,4 +31,22 @@ test("installmentMonths", () => {
 test("splitInstallments puts the remainder on the first", () => {
   expect(splitInstallments(10000, 3)).toEqual([3334, 3333, 3333]);
   expect(splitInstallments(9000, 3)).toEqual([3000, 3000, 3000]);
+});
+
+describe("invoiceDisplayStatus", () => {
+  const inv = (status: "OPEN" | "PAID", closing: string) => ({ status, closingDate: d(closing) });
+  test("paid stays paid", () => expect(invoiceDisplayStatus(inv("PAID", "2026-10-12"), d("2026-11-01"))).toBe("PAID"));
+  test("after closing it is closed", () => expect(invoiceDisplayStatus(inv("OPEN", "2026-10-12"), d("2026-10-13"))).toBe("CLOSED"));
+  test("on the closing day it is still open", () => expect(invoiceDisplayStatus(inv("OPEN", "2026-10-12"), d("2026-10-12"))).toBe("OPEN"));
+});
+
+describe("futureCommittedCents", () => {
+  const inv = (month: string, closing: string, total: number, status: "OPEN" | "CLOSED" | "PAID" = "OPEN") => ({ month, closingDate: d(closing), totalCents: total, status });
+  test("sums unpaid invoices after the current open one", () => {
+    const list = [inv("2026-10", "2026-10-12", 500, "CLOSED"), inv("2026-11", "2026-11-12", 100), inv("2026-12", "2026-12-12", 200), inv("2027-01", "2027-01-12", 300)];
+    expect(futureCommittedCents(list, d("2026-11-01"))).toBe(500);
+  });
+  test("nothing open means everything after today counts", () => {
+    expect(futureCommittedCents([inv("2026-10", "2026-10-12", 500, "PAID")], d("2026-11-01"))).toBe(0);
+  });
 });

@@ -39,3 +39,24 @@ export function splitInstallments(totalCents: number, count: number): number[] {
   const rest = totalCents - base * count;
   return Array.from({ length: count }, (_, i) => (i === 0 ? base + rest : base));
 }
+
+export type InvoiceState = "OPEN" | "CLOSED" | "PAID";
+
+/** Status mostrado: CLOSED quando já passou do fechamento e não foi paga. */
+export function invoiceDisplayStatus(invoice: { status: InvoiceState; closingDate: Date }, now: Date): InvoiceState {
+  if (invoice.status === "PAID") return "PAID";
+  return now.getTime() > invoice.closingDate.getTime() ? "CLOSED" : "OPEN";
+}
+
+/**
+ * Comprometido futuro de um cartão: soma das faturas não pagas que vencem depois da
+ * fatura atual (a primeira não paga cujo fechamento ainda não passou).
+ */
+export function futureCommittedCents(invoices: { month: string; closingDate: Date; totalCents: number; status: InvoiceState }[], now: Date): number {
+  const current = invoices
+    .filter((i) => i.status !== "PAID" && i.closingDate.getTime() >= now.getTime())
+    .map((i) => i.month)
+    .sort()[0];
+  if (!current) return 0;
+  return invoices.filter((i) => i.status !== "PAID" && i.month > current).reduce((s, i) => s + i.totalCents, 0);
+}

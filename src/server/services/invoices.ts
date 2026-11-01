@@ -1,8 +1,8 @@
 import "server-only";
 import { db, type Tx } from "@/server/db";
-import { invoiceDates } from "@/domain/invoices";
+import { futureCommittedCents, invoiceDates, invoiceDisplayStatus } from "@/domain/invoices";
 import { today } from "@/lib/dates";
-import { addMonthKey, monthKey, monthLabel } from "@/lib/months";
+import { monthKey, monthLabel } from "@/lib/months";
 import { parseDateInput } from "@/lib/dates";
 import { AppError, notFound } from "@/server/errors";
 import type { Account, Invoice, InvoiceStatus } from "@/generated/prisma/client";
@@ -17,10 +17,8 @@ export async function ensureInvoice(tx: Tx, account: Pick<Account, "id" | "closi
   return tx.invoice.create({ data: { accountId: account.id, month, closingDate, dueDate } });
 }
 
-/** Status mostrado: CLOSED quando já passou do fechamento e não foi paga. */
 export function displayStatus(invoice: Pick<Invoice, "status" | "closingDate">, now: Date = today()): InvoiceStatus {
-  if (invoice.status === "PAID") return "PAID";
-  return now.getTime() > invoice.closingDate.getTime() ? "CLOSED" : "OPEN";
+  return invoiceDisplayStatus(invoice, now);
 }
 
 export async function invoiceTotal(invoiceId: string, client: Tx = db): Promise<number> {
@@ -86,12 +84,30 @@ export async function listInvoices(accountId?: string): Promise<InvoiceSummary[]
   }));
 }
 
-/**
- * Comprometido futuro de um cartão: soma das faturas que vencem depois da fatura
- * aberta atual (a primeira não paga cujo fechamento ainda não passou).
- */
-export function futureCommitted(invoices: InvoiceSummary[], now: Date = today()): number {
-  const open = invoices.filter((i) => i.status !== "PAID" && i.closingDate.getTime() >= now.getTime()).sort((a, b) => a.month.localeCompare(b.month));
-  const current = open[0]?.month ?? addMonthKey(monthKey(now), 0);
-  return invoices.filter((i) => i.status !== "PAID" && i.month > current).reduce((s, i) => s + i.totalCents, 0);
+export const futureCommitted = (invoices: InvoiceSummary[], now: Date = today()) => futureCommittedCents(invoices, now);
+
+/** Fatura com itens e totais por categoria. */
+export async function getInvoiceDetail(id: string) {
+  const invoice = await db.invoice.findUnique({
+    where: { id },
+    include: {
+      account: true,
+      payment: { include: { account: true } },
+      items: { include: { category: true, project: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] },
+    },
+  });
+  if (!invoice) return null;
+  const items = invoice.items.filter((t) => t.type === "EXPENSE");
+  const byCategory = new Map<string, number>();
+  for (const t of items) {
+    const name = t.category?.name ?? "Sem categoria";
+    byCategory.set(name, (byCategory.get(name) ?? 0) + t.amountCents);
+  }
+  return {
+    invoice,
+    status: displayStatus(invoice),
+    items,
+    totalCents: items.reduce((s, t) => s + t.amountCents, 0),
+    byCategory: [...byCategory.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents),
+  };
 }

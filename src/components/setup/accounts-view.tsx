@@ -187,7 +187,7 @@ export function AccountsView({ accounts, today }: { accounts: AccountRow[]; toda
                     {a.archived && " · arquivada"}
                   </p>
                 </div>
-                <p className={cn("text-right text-lg font-semibold tabular-nums", a.type !== "CREDIT_CARD" && a.balanceCents < 0 && "text-destructive")}>
+                <p data-testid="balance" className={cn("text-right text-lg font-semibold tabular-nums", a.type !== "CREDIT_CARD" && a.balanceCents < 0 && "text-destructive")}>
                   {formatBRL(a.balanceCents)}
                 </p>
               </div>
