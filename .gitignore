@@ -60,3 +60,6 @@ next-env.d.ts
 # Planilhas reais (nunca commitar)
 *.xlsx
 *.xls
+
+# logs locais
+*.log
