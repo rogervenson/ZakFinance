@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { run } from "./run";
-import { confirmSeries, dismissSeries, undoZakImport } from "@/server/services/zak-import";
+import { confirmSeries, dismissSeries, fixImportedDates, undoZakImport } from "@/server/services/zak-import";
 import { AppError } from "@/server/errors";
 
 function refresh() {
@@ -29,5 +29,13 @@ export async function undoImportAction(confirmation: string) {
     if (confirmation.trim().toUpperCase() !== "DESFAZER") throw new AppError("VALIDATION", "Digite DESFAZER para confirmar.");
     await undoZakImport();
     refresh();
+  });
+}
+
+export async function fixImportedDatesAction() {
+  return run(async () => {
+    const n = await fixImportedDates();
+    refresh();
+    return n;
   });
 }

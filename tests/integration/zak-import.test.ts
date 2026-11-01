@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import ExcelJS from "exceljs";
 import { db } from "@/server/db";
-import { confirmSeries, confirmZakImport, dismissSeries, listPendingSeries, previewZakImport, undoZakImport } from "@/server/services/zak-import";
+import { confirmSeries, confirmZakImport, countDatesOutsideMonth, dismissSeries, fixImportedDates, listPendingSeries, previewZakImport, undoZakImport } from "@/server/services/zak-import";
 import { createTransaction } from "@/server/services/transactions";
 import { colLetter, type Grid } from "@/domain/zak26/grid";
 import { geral, inv, monthSheet, OUT, sctSheet } from "../unit/fixtures/zak26-grid";
@@ -125,5 +125,20 @@ describe("import review leftovers", () => {
     await confirmSeries(pending.map((p) => p.key), 6);
     const rows = await db.transaction.findMany({ where: { installmentPlanId: { not: null } }, orderBy: { month: "asc" } });
     expect(rows.map((r) => r.installmentNumber)).toEqual([2, 3, 4, 5, 6]);
+  });
+});
+
+describe("date fix for imported rows", () => {
+  test("imported checking rows dated outside their month are moved into it; card rows are not", async () => {
+    await confirmZakImport(file, NOW);
+    // Simula uma importação antiga, antes da correção: data em setembro numa linha de outubro.
+    await db.transaction.updateMany({ where: { importKey: "ZAK26:Out:B98" }, data: { date: new Date("2026-09-20T00:00:00Z") } });
+    expect(await countDatesOutsideMonth()).toBe(1);
+    expect(await fixImportedDates()).toBe(1);
+    const row = await db.transaction.findUniqueOrThrow({ where: { importKey: "ZAK26:Out:B98" } });
+    expect(row.date).toEqual(new Date("2026-10-20T00:00:00Z"));
+    const card = await db.transaction.findUniqueOrThrow({ where: { importKey: "ZAK26:Out:B53" } });
+    expect(card.date).toEqual(new Date("2026-09-16T00:00:00Z"));
+    expect(await countDatesOutsideMonth()).toBe(0);
   });
 });

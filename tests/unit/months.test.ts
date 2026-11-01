@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addMonthKey, currentMonthKey, monthEnd, monthKey, monthLabel, monthStart } from "@/lib/months";
+import { addMonthKey, currentMonthKey, monthEnd, monthKey, monthLabel, monthStart, moveToMonth } from "@/lib/months";
 
 test("addMonthKey crosses years", () => {
   expect(addMonthKey("2026-12", 1)).toBe("2027-01");
@@ -24,4 +24,9 @@ test("monthStart and monthEnd", () => {
 test("currentMonthKey uses Sao Paulo time", () => {
   // 02:00 UTC on Nov 1 is still Oct 31 in São Paulo (UTC-3).
   expect(currentMonthKey(new Date("2026-11-01T02:00:00Z"))).toBe("2026-10");
+});
+
+test("moveToMonth keeps the day, clamped to the month length", () => {
+  expect(moveToMonth(new Date("2026-09-05T00:00:00Z"), "2026-10")).toEqual(new Date("2026-10-05T00:00:00Z"));
+  expect(moveToMonth(new Date("2026-01-31T00:00:00Z"), "2026-02")).toEqual(new Date("2026-02-28T00:00:00Z"));
 });

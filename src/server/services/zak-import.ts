@@ -6,7 +6,7 @@ import { invoiceDates, invoiceMonthFor } from "@/domain/invoices";
 import { parseZak26, type ZakIssue, type ZakParse } from "@/domain/zak26/parse";
 import { balanceAt, planZakImport, simulateChecking, type PlanContext, type PlannedTx } from "@/domain/zak26/plan";
 import { detectSeries, type SeriesCandidate } from "@/domain/zak26/series";
-import { addMonthKey, currentMonthKey } from "@/lib/months";
+import { addMonthKey, currentMonthKey, monthKey, moveToMonth } from "@/lib/months";
 import { today } from "@/lib/dates";
 import { readWorkbook } from "@/server/import/xlsx-grid";
 import { AppError } from "@/server/errors";
@@ -331,3 +331,23 @@ export async function undoZakImport() {
   );
 }
 
+
+/** Linhas da planilha fora do cartão cuja data não está no mês da aba (importadas antes da correção). */
+async function datesOutsideMonth() {
+  const rows = await db.transaction.findMany({
+    where: { source: "ZAK26", invoiceId: null, paysInvoiceId: null, importKey: { startsWith: "ZAK26:" } },
+    select: { id: true, date: true, month: true },
+  });
+  return rows.filter((r) => monthKey(r.date) !== r.month);
+}
+
+export async function countDatesOutsideMonth(): Promise<number> {
+  return (await datesOutsideMonth()).length;
+}
+
+/** Corrige essas datas: mantém o dia e usa o mês da aba. */
+export async function fixImportedDates(): Promise<number> {
+  const rows = await datesOutsideMonth();
+  await db.$transaction(rows.map((r) => db.transaction.update({ where: { id: r.id }, data: { date: moveToMonth(r.date, r.month) } })));
+  return rows.length;
+}

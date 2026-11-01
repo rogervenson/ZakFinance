@@ -41,3 +41,10 @@ export function monthLabel(key: string): string {
 export function currentMonthKey(now: Date = new Date()): string {
   return monthKey(today(now));
 }
+
+/** Mesma data, no mês indicado (dia limitado ao tamanho do mês). */
+export function moveToMonth(date: Date, key: string): Date {
+  const { y, m } = parse(key);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m - 1, Math.min(new Date(date).getUTCDate(), last)));
+}

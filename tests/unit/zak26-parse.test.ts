@@ -56,11 +56,17 @@ describe("month sheets", () => {
     expect(result.issues.find((i) => i.cell === "C109")).toBeUndefined();
   });
 
-  test("debit row dated outside the sheet month is flagged but kept", () => {
-    const sheet = monthSheet("Out", { A98: "agua", B98: 429.05, C98: d("2026-09-05") }, { 109: 429.05 });
+  test("debit/income row dated outside the sheet month keeps the day and moves to the sheet month", () => {
+    const sheet = monthSheet("Out", { A98: "agua", B98: 429.05, C98: d("2026-09-05"), A3: "SMA:", B3: 100, C3: d("2025-10-31") }, { 109: 429.05, 11: 100 });
     const r = parseZak26([sheet], { year: 2026, lastMonth: "2026-11" });
-    expect(r.rows[0].date).toEqual(d("2026-09-05"));
-    expect(r.issues).toContainEqual(expect.objectContaining({ cell: "C98", kind: "DATA_FORA_DO_MES" }));
+    expect(r.rows.find((x) => x.description === "agua")!.date).toEqual(d("2026-10-05"));
+    expect(r.rows.find((x) => x.description === "SMA:")!.date).toEqual(d("2026-10-31"));
+    expect(r.issues).toContainEqual(expect.objectContaining({ cell: "C98", kind: "DATA_FORA_DO_MES", message: expect.stringContaining("05/10/2026") }));
+  });
+
+  test("credit rows keep their original (older) purchase date", () => {
+    const r = parseZak26([OUT], { year: 2026, lastMonth: "2026-11" });
+    expect(r.rows.find((x) => x.description === "vitorino")!.date).toEqual(d("2026-09-16"));
   });
 
   test("sheets after lastMonth are skipped", () => {

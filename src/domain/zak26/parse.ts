@@ -1,7 +1,7 @@
 // Leitura pura da planilha Zak26 → estrutura com lançamentos, saldos, patrimônio,
 // carteira e problemas encontrados. Não toca no banco.
 import { toCents } from "@/lib/money";
-import { monthKey } from "@/lib/months";
+import { monthKey, moveToMonth } from "@/lib/months";
 import { isNumber, label, ref, text, toMatrix, type Cell, type Grid } from "./grid";
 import { DATE_MAX, DATE_MIN, IGNORED_COLS, MONTH_SHEETS, matchHeader, paymentOf, type BlockId } from "./layout";
 
@@ -112,7 +112,11 @@ function parseMonthSheet(grid: Grid, month: string, out: ZakParse) {
       date = firstOfMonth;
       out.issues.push({ sheet: grid.name, cell: ref(r, 3), kind: "DATA_INVALIDA", message: `Data inválida ou vazia; usado o dia 1º do mês.` });
     } else if (payment !== "CREDITO" && monthKey(date) !== month) {
-      out.issues.push({ sheet: grid.name, cell: ref(r, 3), kind: "DATA_FORA_DO_MES", message: `Data ${date.toISOString().slice(0, 10)} fora do mês da aba.` });
+      // Data digitada no mês errado (ex.: 05/09 na aba de outubro): mantém o dia e usa o mês da aba.
+      const fixed = moveToMonth(date, month);
+      const br = (x: Date) => x.toISOString().slice(0, 10).split("-").reverse().join("/");
+      out.issues.push({ sheet: grid.name, cell: ref(r, 3), kind: "DATA_FORA_DO_MES", message: `Data ${br(date)} fora do mês da aba; corrigida para ${br(fixed)}.` });
+      date = fixed;
     }
     const description = text(a) || "(sem descrição)";
     if (!text(a)) out.issues.push({ sheet: grid.name, cell: ref(r, 1), kind: "SEM_DESCRICAO", message: "Valor sem descrição." });
