@@ -1,4 +1,11 @@
 // ZakFinance — modelo de dados
+//
+// Convenções:
+// - IDs cuid; tabelas snake_case via @@map.
+// - Dinheiro em centavos inteiros (campos ...Cents), sempre positivos em Transaction.
+// - Datas de calendário com @db.Date, tratadas como meia-noite UTC (src/lib/dates.ts).
+// - Meses como texto "YYYY-MM".
+// - Nada é apagado pela interface quando há histórico: contas, categorias e projetos são arquivados.
 
 generator client {
   provider = "prisma-client"
@@ -9,6 +16,244 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  BENEFIT
+  INVESTMENT
+}
+
+enum TxType {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+enum TxSource {
+  MANUAL
+  ZAK26
+}
+
+enum CategoryKind {
+  EXPENSE
+  INCOME
+}
+
+enum InvoiceStatus {
+  OPEN
+  CLOSED
+  PAID
+}
+
+enum ReimbursementStatus {
+  PENDING
+  SETTLED
+}
+
+// ───────────────────────────── Acesso ─────────────────────────────
+
 model User {
-  id String @id @default(cuid())
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String
+  mustChangePassword Boolean   @default(true)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  createdAt          DateTime  @default(now())
+  sessions           Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ───────────────────────────── Cadastros ─────────────────────────────
+
+model Account {
+  id                  String      @id @default(cuid())
+  name                String      @unique
+  type                AccountType
+  openingBalanceCents Int         @default(0)
+  openingDate         DateTime    @db.Date
+  /// Só para cartões: dia de fechamento e de vencimento (1–31).
+  closingDay          Int?
+  dueDay              Int?
+  archivedAt          DateTime?
+  sortOrder           Int         @default(0)
+  createdAt           DateTime    @default(now())
+
+  outgoing         Transaction[]     @relation("TxAccount")
+  incoming         Transaction[]     @relation("TxToAccount")
+  invoices         Invoice[]
+  installmentPlans InstallmentPlan[]
+
+  @@map("accounts")
+}
+
+model Category {
+  id                       String       @id @default(cuid())
+  name                     String
+  kind                     CategoryKind
+  /// Entra no custo de vida recorrente (Projetos e Reembolsável não entram).
+  countsInCostOfLiving     Boolean      @default(true)
+  /// Para receitas: continua depois da aposentadoria.
+  continuesAfterRetirement Boolean      @default(false)
+  archivedAt               DateTime?
+  sortOrder                Int          @default(0)
+
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+
+  @@unique([name, kind])
+  @@map("categories")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  budgetCents Int?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+
+  @@map("projects")
+}
+
+// ───────────────────────────── Cartão ─────────────────────────────
+
+model Invoice {
+  id          String        @id @default(cuid())
+  accountId   String
+  account     Account       @relation(fields: [accountId], references: [id])
+  /// Mês de vencimento "YYYY-MM".
+  month       String
+  closingDate DateTime      @db.Date
+  dueDate     DateTime      @db.Date
+  status      InvoiceStatus @default(OPEN)
+  paidAt      DateTime?     @db.Date
+
+  items   Transaction[] @relation("InvoiceItems")
+  payment Transaction?  @relation("InvoicePayment")
+
+  @@unique([accountId, month])
+  @@map("invoices")
+}
+
+model InstallmentPlan {
+  id                String   @id @default(cuid())
+  description       String
+  installmentCents  Int
+  count             Int
+  firstInvoiceMonth String
+  purchaseDate      DateTime @db.Date
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id])
+  categoryId        String
+  category          Category @relation(fields: [categoryId], references: [id])
+  projectId         String?
+  project           Project? @relation(fields: [projectId], references: [id])
+  source            TxSource @default(MANUAL)
+  createdAt         DateTime @default(now())
+
+  transactions Transaction[]
+
+  @@map("installment_plans")
+}
+
+// ───────────────────────────── Lançamentos ─────────────────────────────
+
+model Transaction {
+  id                  String               @id @default(cuid())
+  type                TxType
+  /// Data da compra / do evento.
+  date                DateTime             @db.Date
+  /// Mês de caixa "YYYY-MM": mês da fatura para compras no cartão, senão o mês da data.
+  month               String
+  description         String
+  /// Sempre > 0.
+  amountCents         Int
+  accountId           String
+  account             Account              @relation("TxAccount", fields: [accountId], references: [id])
+  toAccountId         String?
+  toAccount           Account?             @relation("TxToAccount", fields: [toAccountId], references: [id])
+  categoryId          String?
+  category            Category?            @relation(fields: [categoryId], references: [id])
+  projectId           String?
+  project             Project?             @relation(fields: [projectId], references: [id])
+  invoiceId           String?
+  invoice             Invoice?             @relation("InvoiceItems", fields: [invoiceId], references: [id])
+  paysInvoiceId       String?              @unique
+  paysInvoice         Invoice?             @relation("InvoicePayment", fields: [paysInvoiceId], references: [id])
+  installmentPlanId   String?
+  installmentPlan     InstallmentPlan?     @relation(fields: [installmentPlanId], references: [id])
+  installmentNumber   Int?
+  reimbursable        Boolean              @default(false)
+  reimbursementStatus ReimbursementStatus?
+  reimbursedBy        String?
+  note                String?
+  source              TxSource             @default(MANUAL)
+  /// Chave de idempotência da importação, ex.: "ZAK26:Out:B58".
+  importKey           String?              @unique
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([month])
+  @@index([accountId, date])
+  @@index([description])
+  @@map("transactions")
+}
+
+// ───────────────────────────── Patrimônio ─────────────────────────────
+
+model AssetSnapshot {
+  id         String   @id @default(cuid())
+  month      String
+  /// Poupança | Fundos | Ações | FIIs | ETF | Previdência
+  assetClass String
+  valueCents Int
+  source     TxSource @default(MANUAL)
+
+  @@unique([month, assetClass])
+  @@map("asset_snapshots")
+}
+
+model Holding {
+  id                  String   @id @default(cuid())
+  ticker              String   @unique
+  /// ACAO | FII | ETF
+  kind                String
+  quantity            Int
+  avgPriceCents       Int
+  dividendsTotalCents Int      @default(0)
+  asOf                DateTime @db.Date
+  source              TxSource @default(MANUAL)
+
+  @@map("holdings")
+}
+
+model ImportRun {
+  id         String   @id @default(cuid())
+  kind       String
+  fileSha256 String
+  createdAt  DateTime @default(now())
+  report     Json
+  /// Grade bruta da aba Inv e linhas da Geral, guardadas para os próximos planos.
+  raw        Json
+
+  @@map("import_runs")
 }

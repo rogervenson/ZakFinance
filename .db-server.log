@@ -1,0 +1,8 @@
+
+> zakfinance@0.1.0 db
+> node scripts/db-server.mjs
+
+[db] Initializing cluster in C:\Sistemas\ZakFinance\.data\postgres ...
+[db] Database "zakfinance" created.
+[db] Database "zakfinance_test" created.
+[db] PostgreSQL ready on localhost:5434 (database "zakfinance"). Press Ctrl+C to stop.
