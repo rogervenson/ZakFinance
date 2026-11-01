@@ -10,7 +10,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["exceljs"],
+  serverExternalPackages: ["exceljs", "unpdf"],
   devIndicators: false,
   turbopack: {
     rules: {

@@ -38,6 +38,14 @@ export function pickSuggestion(history: SuggestHistory[], description: string): 
   const norm = (h: SuggestHistory) => normalizeDescription(stripInstallment(h.description));
   let matches = withCategory.filter((h) => norm(h) === target);
   if (matches.length === 0) matches = withCategory.filter((h) => norm(h).startsWith(target));
+  if (matches.length === 0) {
+    // Descrição de extrato: "MERCADO VITORINO" contém o conhecido "vitorino".
+    // Palavras inteiras, com pelo menos 4 letras; vence a descrição conhecida mais longa.
+    const padded = ` ${target} `;
+    const contained = withCategory.filter((h) => norm(h).length >= 4 && padded.includes(` ${norm(h)} `));
+    const longest = Math.max(0, ...contained.map((h) => norm(h).length));
+    matches = contained.filter((h) => norm(h).length === longest);
+  }
   if (matches.length === 0) return null;
 
   const recent = [...matches].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);

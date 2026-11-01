@@ -66,3 +66,6 @@ next-env.d.ts
 
 # rascunhos locais
 /.tmp
+
+# extratos e faturas reais (nunca commitar)
+*.pdf

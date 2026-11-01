@@ -57,6 +57,8 @@ function baseData(v: TxData) {
 export interface TxLink {
   recurrenceId?: string;
   recurrenceMonth?: string;
+  /** Chave da linha de extrato importada (evita importar duas vezes). */
+  importKey?: string;
 }
 
 export async function createTransaction(raw: unknown, link: TxLink = {}) {

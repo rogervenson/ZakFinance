@@ -37,3 +37,14 @@ test("account comes from the most recent match of the winning category", () => {
   const history = [row("giassi", "mercado", 5, "card"), row("giassi", "mercado", 1, "checking")];
   expect(pickSuggestion(history, "giassi")?.accountId).toBe("checking");
 });
+
+test("a statement description that contains a known description is suggested", () => {
+  expect(pickSuggestion([row("vitorino", "mercado", 1)], "MERCADO VITORINO")?.categoryId).toBe("mercado");
+  expect(pickSuggestion([row("Felipe", "aluguel", 1)], "PIX RECEBIDO Luiz Felipe Rodrigues Pad")?.categoryId).toBe("aluguel");
+});
+
+test("containment needs at least 4 letters and prefers the longest known description", () => {
+  expect(pickSuggestion([row("pp", "saude", 1)], "PIX ENVIADO APPLE")).toBeNull();
+  const h = [row("mercado", "despesas", 1), row("mercado vitorino", "mercado", 1)];
+  expect(pickSuggestion(h, "MERCADO VITORINO LTDA")?.categoryId).toBe("mercado");
+});

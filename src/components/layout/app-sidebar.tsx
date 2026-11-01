@@ -27,7 +27,7 @@ const ITEMS: Item[] = [
   { href: "/faturas", label: "Faturas", icon: CreditCard },
   { href: "/contas", label: "Contas", icon: Landmark },
   { href: "/categorias", label: "Categorias e projetos", icon: Tags },
-  { href: "/importar", label: "Importar planilha", icon: FileSpreadsheet },
+  { href: "/importar", label: "Importar", icon: FileSpreadsheet },
 ];
 
 export function AppSidebar({ user }: { user: { name: string; email: string } }) {
