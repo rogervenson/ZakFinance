@@ -216,11 +216,14 @@ model Transaction {
   recurrenceId        String?
   recurrence          Recurrence?          @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
   recurrenceMonth     String?
+  /// Ativo a que o provento se refere (dividendos, JCP, rendimentos de FII).
+  ticker              String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
   @@unique([recurrenceId, recurrenceMonth])
   @@index([month])
+  @@index([ticker])
   @@index([accountId, date])
   @@index([description])
   @@map("transactions")
@@ -243,6 +246,8 @@ model AssetSnapshot {
 model Holding {
   id                  String   @id @default(cuid())
   ticker              String   @unique
+  /// Lucro realizado acumulado nas vendas.
+  realizedCents       Int      @default(0)
   /// ACAO | FII | ETF
   kind                String
   quantity            Int
@@ -311,4 +316,44 @@ model DismissedSeries {
   createdAt DateTime @default(now())
 
   @@map("dismissed_series")
+}
+
+// ───────────────────────────── Investimentos ─────────────────────────────
+
+enum OperationType {
+  BUY
+  SELL
+}
+
+/// Compra ou venda de um ativo. A posição (Holding) é atualizada a cada operação.
+model InvestmentOperation {
+  id            String        @id @default(cuid())
+  ticker        String
+  type          OperationType
+  date          DateTime      @db.Date
+  quantity      Int
+  priceCents    Int
+  feesCents     Int           @default(0)
+  /// Lucro (ou prejuízo) realizado numa venda.
+  realizedCents Int?
+  /// Posição antes da operação (para desfazer exatamente).
+  prevQuantity      Int     @default(0)
+  prevAvgPriceCents Int     @default(0)
+  /// Tipo do ativo, para criar a posição numa primeira compra.
+  kind          String?
+  note          String?
+  createdAt     DateTime      @default(now())
+
+  @@index([ticker, date])
+  @@map("investment_operations")
+}
+
+/// Última cotação conhecida de um ativo (ou "USDBRL").
+model Quote {
+  ticker     String   @id
+  priceCents Int
+  changePct  Float?
+  fetchedAt  DateTime
+
+  @@map("quotes")
 }

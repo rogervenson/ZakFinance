@@ -26,6 +26,7 @@ export async function wipeTransactions() {
   await db.invoice.deleteMany();
   await db.assetSnapshot.deleteMany();
   await db.holding.deleteMany();
+  await db.investmentOperation.deleteMany();
   await db.importRun.deleteMany();
   await db.account.updateMany({ data: { openingBalanceCents: 0 } });
 }
