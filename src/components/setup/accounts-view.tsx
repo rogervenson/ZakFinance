@@ -119,8 +119,9 @@ function AdjustDialog({ account, onClose, today }: { account: AccountRow; onClos
           <DialogTitle>Ajustar saldo — {account.name}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          {isCard ? "Fatura em aberto" : "Saldo"} no sistema: <strong>{formatBRL(account.balanceCents)}</strong>. A diferença vira um lançamento
-          &quot;Ajuste de saldo&quot;, que aparece na lista e pode ser excluído.
+          {isCard ? "Dívida total do cartão" : "Saldo"} no sistema: <strong>{formatBRL(account.balanceCents)}</strong>.
+          {isCard && " Inclui faturas não pagas e parcelas futuras; compare com o limite usado no app do banco, não só com a fatura atual."} A diferença
+          vira um lançamento &quot;Ajuste de saldo&quot;, que fica fora do custo de vida e pode ser excluído.
         </p>
         <form
           className="space-y-4"
@@ -139,7 +140,7 @@ function AdjustDialog({ account, onClose, today }: { account: AccountRow; onClos
           }}
         >
           <div className="grid grid-cols-2 gap-3">
-            <FormField id="adj-value" label={isCard ? "Fatura real hoje" : "Saldo real hoje"} error={errors.realBalance}>
+            <FormField id="adj-value" label={isCard ? "Dívida real do cartão hoje" : "Saldo real hoje"} error={errors.realBalance}>
               <Input id="adj-value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
             </FormField>
             <FormField id="adj-date" label="Data" error={errors.date}>

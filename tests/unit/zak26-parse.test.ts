@@ -101,3 +101,24 @@ describe("Geral and Inv", () => {
     expect(result.rawInv[9][0]).toBe("BBAS3");
   });
 });
+
+describe("review fixes", () => {
+  test("non-numeric amount inside a block is reported", () => {
+    const sheet = monthSheet("Out", { A98: "celesc", B98: "50,00", C98: d("2026-10-20"), A99: "agua", B99: { error: "#VALUE!" }, C99: d("2026-10-20") });
+    const r = parseZak26([sheet], { year: 2026, lastMonth: "2026-11" });
+    expect(r.issues.filter((i) => i.kind === "VALOR_INVALIDO").map((i) => i.cell)).toEqual(["B98", "B99"]);
+  });
+
+  test("value without description has its own kind", () => {
+    const sheet = monthSheet("Out", { B98: 10, C98: d("2026-10-20") }, { 109: 10 });
+    const r = parseZak26([sheet], { year: 2026, lastMonth: "2026-11" });
+    expect(r.issues).toContainEqual(expect.objectContaining({ cell: "A98", kind: "SEM_DESCRICAO" }));
+  });
+
+  test("negative amount is kept and flagged as a refund", () => {
+    const sheet = monthSheet("Mai", { A126: "cashback esfera", B126: -420, C126: d("2026-04-20") }, { 139: -420 });
+    const r = parseZak26([sheet], { year: 2026, lastMonth: "2026-11" });
+    expect(r.rows[0].cents).toBe(-42000);
+    expect(r.issues).toContainEqual(expect.objectContaining({ cell: "B126", kind: "ESTORNO" }));
+  });
+});

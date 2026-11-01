@@ -24,6 +24,7 @@ export const EXPENSE_CATEGORIES = [
   { name: "Projetos", countsInCostOfLiving: false },
   { name: "Reembolsável", countsInCostOfLiving: false },
   { name: "Outros", countsInCostOfLiving: true },
+  { name: "Ajuste de saldo", countsInCostOfLiving: false },
 ] as const;
 
 export const INCOME_CATEGORIES = [
@@ -35,10 +36,12 @@ export const INCOME_CATEGORIES = [
   { name: "Rove", continuesAfterRetirement: true },
   { name: "Dividendos", continuesAfterRetirement: false },
   { name: "Reembolso", continuesAfterRetirement: false },
+  { name: "Estorno", continuesAfterRetirement: false },
   { name: "Outros", continuesAfterRetirement: false },
+  { name: "Ajuste de saldo", continuesAfterRetirement: false },
 ] as const;
 
 export const DEFAULT_PROJECTS = ["Sótão", "Agro"] as const;
 
 /** Categoria usada para ajustes de saldo. */
-export const ADJUSTMENT_CATEGORY = "Outros";
+export const ADJUSTMENT_CATEGORY = "Ajuste de saldo";

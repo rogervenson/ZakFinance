@@ -27,7 +27,7 @@ test("adjusting the real balance creates an explicit transaction", async ({ page
   await dialog.getByRole("button", { name: "Ajustar" }).click();
   await expect(card).toContainText("R$ 100,00");
   await page.goto("/lancamentos?q=Ajuste");
-  await expect(page.getByTestId("transaction-list").getByText("Ajuste de saldo")).toBeVisible();
+  await expect(page.getByTestId("transaction-list").getByRole("row", { name: /Ajuste de saldo/ })).toBeVisible();
 });
 
 test("archiving a category hides it from the active list", async ({ page }) => {

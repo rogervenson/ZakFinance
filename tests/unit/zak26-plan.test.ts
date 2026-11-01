@@ -86,3 +86,11 @@ test("balanceAt carries the last known balance into months without checking move
   expect(balanceAt(sim, "2026-11", 100)).toBe(900);
   expect(balanceAt(sim, "2025-12", 100)).toBe(100);
 });
+
+test("negative credit row becomes a refund (income) inside the same invoice", () => {
+  const mai = monthSheet("Mai", { A126: "cashback esfera", B126: -420, C126: d("2026-04-20") }, { 139: -420 });
+  const p = planZakImport(parseZak26([mai], { year: 2026, lastMonth: "2026-11" }), ctx);
+  expect(p.find((x) => x.importKey === "ZAK26:Mai:B126")).toMatchObject({ type: "INCOME", amountCents: 42000, accountId: "card", invoiceMonth: "2026-05", categoryId: "INCOME:Estorno" });
+  // A fatura paga é o líquido da aba: −420.
+  expect(p.find((x) => x.importKey === "ZAK26:fatura:2026-05")).toBeUndefined();
+});

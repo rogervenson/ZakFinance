@@ -103,3 +103,29 @@ describe("other transactions", () => {
     expect(search.items.map((t) => t.description)).toEqual(["Giassi"]);
   });
 });
+
+describe("review fixes", () => {
+  test("a refund on the card goes into the invoice and reduces its total", async () => {
+    const [buy] = await createTransaction(cardPurchase({ amount: "300,00" }));
+    const [refund] = await createTransaction({ type: "INCOME", date: "2026-10-14", description: "Estorno", amount: "50,00", accountId: I.card, categoryId: I.cat("Estorno", "INCOME") });
+    expect(refund.invoiceId).toBe(buy.invoiceId);
+    expect(await invoiceTotal(buy.invoiceId!)).toBe(25000);
+  });
+
+  test("editing only the category of an imported card row keeps its invoice", async () => {
+    const [buy] = await createTransaction(cardPurchase());
+    // Linha importada: data antiga, mas na fatura de nov/2026 (mês da aba).
+    await db.transaction.update({ where: { id: buy.id }, data: { date: new Date("2025-11-20T00:00:00Z"), source: "ZAK26" } });
+    const edited = await updateTransaction(buy.id, cardPurchase({ date: "2025-11-20", categoryId: I.cat("Despesas") }));
+    expect(edited.month).toBe("2026-11");
+    expect(edited.invoiceId).toBe(buy.invoiceId);
+  });
+
+  test("balance adjustments do not count as cost of living", async () => {
+    const { adjustBalance } = await import("@/server/services/accounts");
+    const t = await adjustBalance({ accountId: I.checking, realBalance: "-30,00", date: "2026-10-31" });
+    const cat = await db.category.findUniqueOrThrow({ where: { id: t!.categoryId! } });
+    expect(cat.name).toBe("Ajuste de saldo");
+    expect(cat.countsInCostOfLiving).toBe(false);
+  });
+});

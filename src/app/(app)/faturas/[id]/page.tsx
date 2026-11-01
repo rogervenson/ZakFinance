@@ -39,7 +39,7 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
         actions={
           <>
             <InvoiceStatusBadge status={status} />
-            {status !== "PAID" && totalCents > 0 && (
+            {status === "CLOSED" && totalCents > 0 && (
               <PayInvoiceButton
                 invoiceId={invoice.id}
                 totalCents={totalCents}
@@ -50,6 +50,11 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
           </>
         }
       />
+      {status === "OPEN" && (
+        <p className="text-sm text-muted-foreground">
+          O pagamento fica disponível depois do fechamento, em {formatDate(invoice.closingDate)}. Até lá, novas compras ainda podem entrar nesta fatura.
+        </p>
+      )}
       {invoice.payment && (
         <p className="text-sm text-muted-foreground">
           Paga em {formatDate(invoice.payment.date)} pela {invoice.payment.account.name}: {formatBRL(invoice.payment.amountCents)}.
@@ -74,7 +79,10 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
                       {t.project ? ` · ${t.project.name}` : ""}
                     </span>
                   </span>
-                  <span className="tabular-nums">{formatBRL(t.amountCents)}</span>
+                  <span className="tabular-nums">
+                    {t.type === "INCOME" ? "−" : ""}
+                    {formatBRL(t.amountCents)}
+                  </span>
                 </li>
               ))}
             </ul>

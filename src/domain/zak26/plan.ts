@@ -81,6 +81,19 @@ function rowToTx(row: ZakRow, ctx: PlanContext): PlannedTx {
     reimbursementStatus: null,
   };
   const expense = EXPENSE_CATEGORY[row.block];
+  if (expense && row.cents < 0) {
+    // Estorno/cashback: receita na mesma conta (e na mesma fatura, se for cartão).
+    const isCard = row.payment === "CREDITO";
+    return {
+      ...base,
+      type: "INCOME",
+      amountCents: -row.cents,
+      accountId: isCard ? ctx.accounts.card : ctx.accounts.checking,
+      categoryId: ctx.categories("INCOME", "Estorno"),
+      projectId: row.block.startsWith("AGRO") ? ctx.projects.Agro : row.block.startsWith("SOTAO") ? ctx.projects.Sótão : null,
+      invoiceMonth: isCard ? row.month : null,
+    };
+  }
   if (expense) {
     const isCard = row.payment === "CREDITO";
     const reimbursable = expense === "Reembolsável";
@@ -116,9 +129,13 @@ export function planZakImport(parse: ZakParse, ctx: PlanContext): PlannedTx[] {
 
   // Faturas de meses passados: uma transferência da conta para o cartão no vencimento.
   const creditByMonth = new Map<string, number>();
-  for (const t of out) if (t.invoiceMonth) creditByMonth.set(t.invoiceMonth, (creditByMonth.get(t.invoiceMonth) ?? 0) + t.amountCents);
+  for (const t of out) {
+    if (!t.invoiceMonth) continue;
+    const signed = t.type === "INCOME" ? -t.amountCents : t.amountCents;
+    creditByMonth.set(t.invoiceMonth, (creditByMonth.get(t.invoiceMonth) ?? 0) + signed);
+  }
   for (const [month, total] of [...creditByMonth.entries()].sort()) {
-    if (month >= ctx.currentMonth) continue;
+    if (month >= ctx.currentMonth || total <= 0) continue;
     const { dueDate } = invoiceDates(month, ctx.card.closingDay, ctx.card.dueDay);
     out.push({
       importKey: `ZAK26:fatura:${month}`,

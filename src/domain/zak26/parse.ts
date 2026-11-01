@@ -18,7 +18,7 @@ export interface ZakRow {
   payment: "CREDITO" | "DEBITO" | null;
 }
 
-export type ZakIssueKind = "DATA_INVALIDA" | "VALOR_INVALIDO" | "BLOCO_IGNORADO" | "TOTAL_DIVERGENTE" | "DATA_FORA_DO_MES";
+export type ZakIssueKind = "DATA_INVALIDA" | "VALOR_INVALIDO" | "SEM_DESCRICAO" | "ESTORNO" | "BLOCO_IGNORADO" | "TOTAL_DIVERGENTE" | "DATA_FORA_DO_MES";
 
 export interface ZakIssue {
   sheet: string;
@@ -96,6 +96,9 @@ function parseMonthSheet(grid: Grid, month: string, out: ZakParse) {
       if (header) {
         block = header;
         sum = 0;
+      } else if (block && b !== null && (typeof b === "object" || !["Valor", "Custo", ""].includes(text(b)))) {
+        // Valor que não é número (texto ou erro): não importado, mas avisado.
+        out.issues.push({ sheet: grid.name, cell: ref(r, 2), kind: "VALOR_INVALIDO", message: `Valor não numérico ("${typeof b === "object" && b && "error" in b ? b.error : text(b)}"); linha não importada.` });
       }
       continue;
     }
@@ -112,7 +115,8 @@ function parseMonthSheet(grid: Grid, month: string, out: ZakParse) {
       out.issues.push({ sheet: grid.name, cell: ref(r, 3), kind: "DATA_FORA_DO_MES", message: `Data ${date.toISOString().slice(0, 10)} fora do mês da aba.` });
     }
     const description = text(a) || "(sem descrição)";
-    if (!text(a)) out.issues.push({ sheet: grid.name, cell: ref(r, 1), kind: "VALOR_INVALIDO", message: "Valor sem descrição." });
+    if (!text(a)) out.issues.push({ sheet: grid.name, cell: ref(r, 1), kind: "SEM_DESCRICAO", message: "Valor sem descrição." });
+    if (cents < 0) out.issues.push({ sheet: grid.name, cell: ref(r, 2), kind: "ESTORNO", message: "Valor negativo: importado como estorno (receita na mesma conta/fatura)." });
     sum += cents;
     out.rows.push({ importKey: `ZAK26:${grid.name}:${ref(r, 2)}`, sheet: grid.name, row: r, month, block, description, cents, date, dateIssue, payment });
   }

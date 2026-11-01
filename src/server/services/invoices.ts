@@ -21,9 +21,10 @@ export function displayStatus(invoice: Pick<Invoice, "status" | "closingDate">, 
   return invoiceDisplayStatus(invoice, now);
 }
 
+/** Total da fatura: compras − estornos. */
 export async function invoiceTotal(invoiceId: string, client: Tx = db): Promise<number> {
-  const sum = await client.transaction.aggregate({ where: { invoiceId, type: "EXPENSE" }, _sum: { amountCents: true } });
-  return sum._sum.amountCents ?? 0;
+  const sums = await client.transaction.groupBy({ by: ["type"], where: { invoiceId }, _sum: { amountCents: true } });
+  return sums.reduce((s, r) => s + (r.type === "INCOME" ? -1 : 1) * (r._sum.amountCents ?? 0), 0);
 }
 
 /** Paga a fatura com uma transferência da conta escolhida para o cartão. */
@@ -69,9 +70,10 @@ export interface InvoiceSummary {
 export async function listInvoices(accountId?: string): Promise<InvoiceSummary[]> {
   const [invoices, totals] = await Promise.all([
     db.invoice.findMany({ where: accountId ? { accountId } : {}, include: { account: true }, orderBy: [{ month: "desc" }] }),
-    db.transaction.groupBy({ by: ["invoiceId"], where: { type: "EXPENSE", invoiceId: { not: null } }, _sum: { amountCents: true } }),
+    db.transaction.groupBy({ by: ["invoiceId", "type"], where: { invoiceId: { not: null } }, _sum: { amountCents: true } }),
   ]);
-  const totalBy = new Map(totals.map((t) => [t.invoiceId, t._sum.amountCents ?? 0]));
+  const totalBy = new Map<string | null, number>();
+  for (const t of totals) totalBy.set(t.invoiceId, (totalBy.get(t.invoiceId) ?? 0) + (t.type === "INCOME" ? -1 : 1) * (t._sum.amountCents ?? 0));
   return invoices.map((i) => ({
     id: i.id,
     accountId: i.accountId,
@@ -97,17 +99,18 @@ export async function getInvoiceDetail(id: string) {
     },
   });
   if (!invoice) return null;
-  const items = invoice.items.filter((t) => t.type === "EXPENSE");
+  const items = invoice.items.filter((t) => t.type !== "TRANSFER");
+  const signed = (t: (typeof items)[number]) => (t.type === "INCOME" ? -t.amountCents : t.amountCents);
   const byCategory = new Map<string, number>();
   for (const t of items) {
     const name = t.category?.name ?? "Sem categoria";
-    byCategory.set(name, (byCategory.get(name) ?? 0) + t.amountCents);
+    byCategory.set(name, (byCategory.get(name) ?? 0) + signed(t));
   }
   return {
     invoice,
     status: displayStatus(invoice),
     items,
-    totalCents: items.reduce((s, t) => s + t.amountCents, 0),
+    totalCents: items.reduce((s, t) => s + signed(t), 0),
     byCategory: [...byCategory.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents),
   };
 }

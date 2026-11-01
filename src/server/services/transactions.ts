@@ -29,7 +29,8 @@ async function checkReferences(tx: Tx, v: TxData) {
   }
 }
 
-const isCardPurchase = (account: Account, v: { type: string }) => account.type === "CREDIT_CARD" && v.type === "EXPENSE";
+/** Compras e estornos no cartão entram numa fatura; transferências (pagamentos) não. */
+const usesInvoice = (account: Account, v: { type: string }) => account.type === "CREDIT_CARD" && v.type !== "TRANSFER";
 
 /** Campos comuns a todas as linhas criadas a partir do formulário. */
 function baseData(v: TxData) {
@@ -57,8 +58,8 @@ export async function createTransaction(raw: unknown) {
   return db.$transaction(async (tx) => {
     const account = await loadAccount(tx, v.accountId);
     await checkReferences(tx, v);
-    const card = isCardPurchase(account, v);
-    if (v.installments > 1 && !card) throw new AppError("VALIDATION", "Parcelamento só no cartão.", { installments: ["Parcelamento só no cartão."] });
+    const card = usesInvoice(account, v);
+    if (v.installments > 1 && !(card && v.type === "EXPENSE")) throw new AppError("VALIDATION", "Parcelamento só no cartão.", { installments: ["Parcelamento só no cartão."] });
 
     if (!card) {
       return [await tx.transaction.create({ data: { ...baseData(v), month: monthKey(v.date), amountCents: v.amount } })];
@@ -129,7 +130,13 @@ export async function updateTransaction(id: string, raw: unknown) {
     const account = await loadAccount(tx, v.accountId);
     let month = monthKey(v.date);
     let invoiceId: string | null = null;
-    if (isCardPurchase(account, v)) {
+    const placementUnchanged = v.date.getTime() === current.date.getTime() && v.accountId === current.accountId && v.type === current.type;
+    if (placementUnchanged) {
+      // Sem mudar data, conta ou tipo, o lançamento fica onde está (linhas importadas
+      // da Zak26 ficam na fatura do mês da aba, mesmo com data antiga).
+      month = current.month;
+      invoiceId = current.invoiceId;
+    } else if (usesInvoice(account, v)) {
       month = addMonthKey(invoiceMonthFor(v.date, account.closingDay!, account.dueDay!), (current.installmentNumber ?? 1) - 1);
       const invoice = await ensureInvoice(tx, account, month);
       if (invoice.status === "PAID") throw new AppError("VALIDATION", PAID_LOCK);
