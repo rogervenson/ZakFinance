@@ -21,6 +21,7 @@ export async function ids() {
 /** Limpa os lançamentos entre testes (mantém os cadastros do seed). */
 export async function wipeTransactions() {
   await db.transaction.deleteMany();
+  await db.dismissedSeries.deleteMany();
   await db.installmentPlan.deleteMany();
   await db.invoice.deleteMany();
   await db.assetSnapshot.deleteMany();

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { coverageYears, latestPatrimony, summarizeMonth, type DashTx } from "@/domain/dashboard";
+import { coverageYears, latestPatrimony, plannedLeftover, summarizeMonth, type DashTx } from "@/domain/dashboard";
 
 const tx = (over: Partial<DashTx>): DashTx => ({
   type: "EXPENSE",
@@ -9,6 +9,7 @@ const tx = (over: Partial<DashTx>): DashTx => ({
   countsInCostOfLiving: true,
   projectId: null,
   isTransferToInvestment: false,
+  isBenefit: false,
   ...over,
 });
 
@@ -80,4 +81,34 @@ test("latestPatrimony carries each asset class forward to its latest value", () 
   ];
   expect(latestPatrimony(snaps)).toEqual({ month: "2026-11", cents: 420 });
   expect(latestPatrimony([])).toBeNull();
+});
+
+test("income into a benefit account (Ticket) is reported apart from cash income", () => {
+  const s = summarizeMonth({
+    month: "2026-10",
+    txs: [
+      tx({ type: "INCOME", amountCents: 500000, categoryId: "salario" }),
+      tx({ type: "INCOME", amountCents: 95400, categoryId: "ticket", isBenefit: true }),
+      tx({ amountCents: 95400, isBenefit: true }),
+    ],
+    history: [],
+  });
+  expect(s.incomeCents).toBe(500000);
+  expect(s.benefitsCents).toBe(95400);
+  expect(s.expenseCents).toBe(95400);
+});
+
+test("planned leftover subtracts invoices and upcoming bills from checking and adds upcoming income", () => {
+  const r = plannedLeftover({
+    checkingCents: 500000,
+    invoicesDueCents: 150000,
+    pending: [
+      { type: "EXPENSE", amountCents: 10000, fromChecking: true, toChecking: false }, // luz
+      { type: "INCOME", amountCents: 480000, fromChecking: true, toChecking: false }, // salário entra na conta
+      { type: "EXPENSE", amountCents: 3000, fromChecking: false, toChecking: false }, // streaming no cartão
+      { type: "INCOME", amountCents: 95400, fromChecking: false, toChecking: false }, // Ticket
+      { type: "TRANSFER", amountCents: 20000, fromChecking: true, toChecking: false }, // poupança
+    ],
+  });
+  expect(r).toEqual({ leftoverCents: 500000 - 150000 - 10000 + 480000 - 20000, upcomingOutCents: 30000, upcomingInCents: 480000 });
 });

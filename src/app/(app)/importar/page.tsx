@@ -7,6 +7,7 @@ import { ImportView } from "@/components/import/import-view";
 import { SeriesList } from "@/components/import/series-list";
 import { UndoImport } from "@/components/import/undo-import";
 import { formatDate } from "@/lib/format";
+import { today } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Importar planilha" };
 
@@ -25,7 +26,7 @@ export default async function ImportPage() {
       />
       {lastRun && (
         <p className="text-sm text-muted-foreground">
-          Última importação em {formatDate(lastRun.createdAt)} · {imported} lançamentos vindos da planilha.
+          Última importação em {formatDate(today(lastRun.createdAt))} · {imported} lançamentos vindos da planilha.
         </p>
       )}
       <ImportView />

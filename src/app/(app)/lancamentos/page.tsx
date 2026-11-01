@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireUser } from "@/server/auth/actor";
 import { listTransactions } from "@/server/services/transactions";
 import { getEntryOptions } from "@/server/services/entry-options";
+import { listMonthRecurrences } from "@/server/services/recurrences";
+import { MonthRecurrences } from "@/components/recurrences/month-recurrences";
 import { currentMonthKey } from "@/lib/months";
 import { toDateInput } from "@/lib/dates";
 import { PageHeader } from "@/components/page-header";
@@ -25,9 +27,10 @@ export default async function TransactionsPage(props: { searchParams: Promise<Se
   const month = validMonth ?? currentMonthKey();
   const page = Math.max(1, Number(s.pagina) || 1);
 
-  const [options, result] = await Promise.all([
+  const [options, result, recurrences] = await Promise.all([
     getEntryOptions(),
     listTransactions({ month: allMonths ? undefined : month, q: s.q, accountId: s.conta, categoryId: s.categoria, projectId: s.projeto, page }),
+    allMonths ? null : listMonthRecurrences(month),
   ]);
 
   const rows: TxRow[] = result.items.map((t) => ({
@@ -47,6 +50,7 @@ export default async function TransactionsPage(props: { searchParams: Promise<Se
     installmentPlanId: t.installmentPlanId,
     reimbursable: t.reimbursable,
     reimbursementStatus: t.reimbursementStatus,
+    reimbursedBy: t.reimbursedBy,
     note: t.note,
     invoicePaid: t.invoice?.status === "PAID",
     isInvoicePayment: !!t.paysInvoiceId,
@@ -66,6 +70,7 @@ export default async function TransactionsPage(props: { searchParams: Promise<Se
         actions={allMonths ? <span className="text-sm text-muted-foreground">Todos os meses</span> : <MonthPicker month={month} />}
       />
       <QuickEntry options={options} />
+      {recurrences && <MonthRecurrences month={month} pending={recurrences.pending} skipped={recurrences.skipped} />}
       <TransactionList rows={rows} options={options} totalCents={result.totalCents} incomeCents={result.incomeCents} count={result.count} />
       {pages > 1 && (
         <div className="flex items-center justify-center gap-2">

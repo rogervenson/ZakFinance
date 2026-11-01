@@ -88,7 +88,7 @@ export function ImportView() {
             <CardHeader>
               <CardTitle>Prévia</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {preview.totalPlanned} lançamentos a criar ({preview.alreadyImported} já importados serão pulados) · saldo inicial da conta em 01/01:{" "}
+                {preview.totalPlanned - preview.alreadyImported} lançamentos a criar{preview.alreadyImported > 0 ? ` (${preview.alreadyImported} já importados serão pulados)` : ""} · saldo inicial da conta em 01/01:{" "}
                 {formatBRL(preview.checkingOpeningCents)} · {preview.snapshots} valores de patrimônio · {preview.holdings} ativos da carteira.
               </p>
             </CardHeader>

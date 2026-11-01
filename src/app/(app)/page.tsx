@@ -36,7 +36,12 @@ export default async function DashboardPage(props: { searchParams: Promise<{ mes
       <PageHeader title="Painel" description={isCurrent ? "Resumo do mês atual." : `Resumo de ${monthLabel(month)}.`} actions={<MonthPicker month={month} />} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat testId="stat-income" label={`Entradas · ${monthLabel(month)}`} value={formatBRL(s.incomeCents)} />
+        <Stat
+          testId="stat-income"
+          label={`Entradas · ${monthLabel(month)}`}
+          value={formatBRL(s.incomeCents)}
+          hint={s.benefitsCents > 0 ? `+ ${formatBRL(s.benefitsCents)} em benefícios (Ticket)` : undefined}
+        />
         <Stat
           testId="stat-expense"
           label={`Saídas · ${monthLabel(month)}`}
@@ -48,7 +53,14 @@ export default async function DashboardPage(props: { searchParams: Promise<{ mes
           label="Sobra prevista (hoje)"
           value={formatBRL(d.sobraPrevistaCents)}
           tone={d.sobraPrevistaCents < 0 ? "negative" : undefined}
-          hint={`Conta ${formatBRL(d.checkingCents)} − ${d.dueCount === 1 ? "1 fatura" : `${d.dueCount} faturas`} até ${formatDate(d.nowMonthEnd)}`}
+          hint={[
+            `Conta ${formatBRL(d.checkingCents)}`,
+            `− ${d.dueCount === 1 ? "1 fatura" : `${d.dueCount} faturas`}`,
+            d.upcomingOutCents ? `− ${formatBRL(d.upcomingOutCents)} em contas previstas` : null,
+            d.upcomingInCents ? `+ ${formatBRL(d.upcomingInCents)} a receber` : null,
+          ]
+            .filter(Boolean)
+            .join(" ") + ` até ${formatDate(d.nowMonthEnd)}`}
         />
         <Stat
           testId="stat-invoice"

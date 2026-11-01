@@ -1,5 +1,5 @@
 import "server-only";
-import { db } from "@/server/db";
+import { db, type Tx } from "@/server/db";
 import { computeBalance, type MovementSums } from "@/domain/balances";
 import { ADJUSTMENT_CATEGORY } from "@/domain/defaults";
 import { monthKey } from "@/lib/months";
@@ -10,11 +10,11 @@ import type { Account } from "@/generated/prisma/client";
 export type AccountWithBalance = Account & { balanceCents: number };
 
 /** Somas de movimentos por conta, até uma data (inclusive). */
-async function movementSums(until?: Date): Promise<Map<string, MovementSums>> {
+async function movementSums(until?: Date, client: Tx = db): Promise<Map<string, MovementSums>> {
   const dateFilter = until ? { date: { lte: until } } : {};
   const [byAccount, byTarget] = await Promise.all([
-    db.transaction.groupBy({ by: ["accountId", "type"], where: dateFilter, _sum: { amountCents: true } }),
-    db.transaction.groupBy({ by: ["toAccountId"], where: { ...dateFilter, type: "TRANSFER", toAccountId: { not: null } }, _sum: { amountCents: true } }),
+    client.transaction.groupBy({ by: ["accountId", "type"], where: dateFilter, _sum: { amountCents: true } }),
+    client.transaction.groupBy({ by: ["toAccountId"], where: { ...dateFilter, type: "TRANSFER", toAccountId: { not: null } }, _sum: { amountCents: true } }),
   ]);
   const map = new Map<string, MovementSums>();
   const get = (id: string) => {
@@ -44,10 +44,10 @@ export async function listAccounts(options: { includeArchived?: boolean } = {}):
 }
 
 /** Saldo (ou dívida, para cartão) de uma conta. */
-export async function accountBalance(accountId: string, until?: Date): Promise<number> {
-  const account = await db.account.findUnique({ where: { id: accountId } });
+export async function accountBalance(accountId: string, until?: Date, client: Tx = db): Promise<number> {
+  const account = await client.account.findUnique({ where: { id: accountId } });
   if (!account) throw notFound("Conta");
-  const sums = await movementSums(until);
+  const sums = await movementSums(until, client);
   return computeBalance(account.type, account.openingBalanceCents, sums.get(accountId) ?? ZERO);
 }
 
@@ -82,27 +82,21 @@ export async function setAccountArchived(id: string, archived: boolean) {
  */
 export async function adjustBalance(raw: unknown) {
   const { accountId, realBalance, date } = parseInput(adjustBalanceSchema, raw);
-  const account = await db.account.findUnique({ where: { id: accountId } });
-  if (!account) throw notFound("Conta");
-  const current = await accountBalance(accountId);
-  // Para cartão o "saldo" é dívida: dívida maior = despesa.
-  const diff = account.type === "CREDIT_CARD" ? current - realBalance : realBalance - current;
-  if (diff === 0) return null;
-  const kind = diff > 0 ? "INCOME" : "EXPENSE";
-  const category = await db.category.upsert({
-    where: { name_kind: { name: ADJUSTMENT_CATEGORY, kind } },
-    update: {},
-    create: { name: ADJUSTMENT_CATEGORY, kind, countsInCostOfLiving: false },
-  });
-  return db.transaction.create({
-    data: {
-      type: kind,
-      date,
-      month: monthKey(date),
-      description: "Ajuste de saldo",
-      amountCents: Math.abs(diff),
-      accountId,
-      categoryId: category.id,
-    },
+  return db.$transaction(async (tx) => {
+    const account = await tx.account.findUnique({ where: { id: accountId } });
+    if (!account) throw notFound("Conta");
+    const current = await accountBalance(accountId, undefined, tx);
+    // Para cartão o "saldo" é dívida: dívida maior = despesa.
+    const diff = account.type === "CREDIT_CARD" ? current - realBalance : realBalance - current;
+    if (diff === 0) return null;
+    const kind = diff > 0 ? "INCOME" : "EXPENSE";
+    const category = await tx.category.upsert({
+      where: { name_kind: { name: ADJUSTMENT_CATEGORY, kind } },
+      update: {},
+      create: { name: ADJUSTMENT_CATEGORY, kind, countsInCostOfLiving: false },
+    });
+    return tx.transaction.create({
+      data: { type: kind, date, month: monthKey(date), description: "Ajuste de saldo", amountCents: Math.abs(diff), accountId, categoryId: category.id },
+    });
   });
 }

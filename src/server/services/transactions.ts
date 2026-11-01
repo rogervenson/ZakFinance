@@ -53,7 +53,13 @@ function baseData(v: TxData) {
  * Cria um lançamento. Compra no cartão vai para a fatura certa; com parcelas,
  * cria o plano e uma linha por parcela nas faturas seguintes.
  */
-export async function createTransaction(raw: unknown) {
+/** Vínculo opcional com uma conta recorrente (um lançamento por mês). */
+export interface TxLink {
+  recurrenceId?: string;
+  recurrenceMonth?: string;
+}
+
+export async function createTransaction(raw: unknown, link: TxLink = {}) {
   const v = parseInput(transactionSchema, raw);
   return db.$transaction(async (tx) => {
     const account = await loadAccount(tx, v.accountId);
@@ -62,7 +68,7 @@ export async function createTransaction(raw: unknown) {
     if (v.installments > 1 && !(card && v.type === "EXPENSE")) throw new AppError("VALIDATION", "Parcelamento só no cartão.", { installments: ["Parcelamento só no cartão."] });
 
     if (!card) {
-      return [await tx.transaction.create({ data: { ...baseData(v), month: monthKey(v.date), amountCents: v.amount } })];
+      return [await tx.transaction.create({ data: { ...baseData(v), ...link, month: monthKey(v.date), amountCents: v.amount } })];
     }
 
     const first = invoiceMonthFor(v.date, account.closingDay!, account.dueDay!);
@@ -98,6 +104,7 @@ export async function createTransaction(raw: unknown) {
             invoiceId: invoice.id,
             installmentPlanId: plan?.id ?? null,
             installmentNumber: plan ? i + 1 : null,
+            ...(plan ? {} : link),
           },
         }),
       );
@@ -123,7 +130,16 @@ export async function updateTransaction(id: string, raw: unknown) {
       if (locked) throw new AppError("VALIDATION", PAID_LOCK);
       return tx.transaction.update({
         where: { id },
-        data: { description: v.description, categoryId: v.categoryId, projectId: v.projectId, note: v.note },
+        data: {
+          description: v.description,
+          categoryId: v.categoryId,
+          projectId: v.projectId,
+          note: v.note,
+          // Reembolso não mexe em valores da fatura: pode mudar mesmo com ela paga.
+          reimbursable: v.type === "EXPENSE" && v.reimbursable,
+          reimbursedBy: v.type === "EXPENSE" && v.reimbursable ? v.reimbursedBy : null,
+          reimbursementStatus: v.type === "EXPENSE" && v.reimbursable ? (current.reimbursementStatus ?? "PENDING") : null,
+        },
       });
     }
 
@@ -162,8 +178,11 @@ async function removeOne(tx: Tx, t: { id: string; paysInvoiceId: string | null }
   if (t.paysInvoiceId) await tx.invoice.update({ where: { id: t.paysInvoiceId }, data: { status: "OPEN", paidAt: null } });
 }
 
-/** Exclui um lançamento, ou todas as parcelas do plano. Faturas pagas travam a exclusão. */
-export async function deleteTransaction(id: string, options: { wholePlan?: boolean } = {}) {
+/**
+ * Exclui um lançamento, ou as parcelas do plano. Um lançamento numa fatura paga não
+ * pode ser excluído; no plano inteiro, as parcelas já pagas ficam e o resto sai.
+ */
+export async function deleteTransaction(id: string, options: { wholePlan?: boolean } = {}): Promise<{ deleted: number; kept: number }> {
   return db.$transaction(async (tx) => {
     const current = await tx.transaction.findUnique({ where: { id }, include: { invoice: true } });
     if (!current) throw notFound("Lançamento");
@@ -171,13 +190,14 @@ export async function deleteTransaction(id: string, options: { wholePlan?: boole
       options.wholePlan && current.installmentPlanId
         ? await tx.transaction.findMany({ where: { installmentPlanId: current.installmentPlanId }, include: { invoice: true } })
         : [current];
-    if (targets.some((t) => t.invoice?.status === "PAID")) throw new AppError("VALIDATION", PAID_LOCK);
-    for (const t of targets) await removeOne(tx, t);
+    const removable = targets.filter((t) => t.invoice?.status !== "PAID");
+    if (removable.length === 0) throw new AppError("VALIDATION", PAID_LOCK);
+    for (const t of removable) await removeOne(tx, t);
     if (current.installmentPlanId) {
       const left = await tx.transaction.count({ where: { installmentPlanId: current.installmentPlanId } });
       if (left === 0) await tx.installmentPlan.delete({ where: { id: current.installmentPlanId } });
     }
-    return targets.length;
+    return { deleted: removable.length, kept: targets.length - removable.length };
   });
 }
 

@@ -26,9 +26,9 @@ export async function updateTransactionAction(id: string, values: unknown) {
 
 export async function deleteTransactionAction(id: string, wholePlan = false) {
   return run(async () => {
-    const n = await deleteTransaction(id, { wholePlan });
+    const result = await deleteTransaction(id, { wholePlan });
     refresh();
-    return n;
+    return result;
   });
 }
 

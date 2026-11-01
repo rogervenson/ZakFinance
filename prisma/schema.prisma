@@ -97,6 +97,8 @@ model Account {
 
   outgoing         Transaction[]     @relation("TxAccount")
   incoming         Transaction[]     @relation("TxToAccount")
+  recurrences      Recurrence[]      @relation("RecAccount")
+  recurrencesTo    Recurrence[]      @relation("RecToAccount")
   invoices         Invoice[]
   installmentPlans InstallmentPlan[]
 
@@ -116,6 +118,7 @@ model Category {
 
   transactions     Transaction[]
   installmentPlans InstallmentPlan[]
+  recurrences      Recurrence[]
 
   @@unique([name, kind])
   @@map("categories")
@@ -209,9 +212,14 @@ model Transaction {
   source              TxSource             @default(MANUAL)
   /// Chave de idempotência da importação, ex.: "ZAK26:Out:B58".
   importKey           String?              @unique
+  /// Lançamento gerado ao confirmar uma conta recorrente (um por mês).
+  recurrenceId        String?
+  recurrence          Recurrence?          @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  recurrenceMonth     String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
+  @@unique([recurrenceId, recurrenceMonth])
   @@index([month])
   @@index([accountId, date])
   @@index([description])
@@ -248,6 +256,8 @@ model Holding {
 
 model ImportRun {
   id         String   @id @default(cuid())
+  /// Saldo inicial da conta corrente antes da importação (para o desfazer).
+  previousOpeningCents Int?
   kind       String
   fileSha256 String
   createdAt  DateTime @default(now())
@@ -256,4 +266,49 @@ model ImportRun {
   raw        Json
 
   @@map("import_runs")
+}
+
+// ───────────────────────────── Recorrentes ─────────────────────────────
+
+model Recurrence {
+  id          String    @id @default(cuid())
+  description String
+  type        TxType
+  amountCents Int
+  accountId   String
+  account     Account   @relation("RecAccount", fields: [accountId], references: [id])
+  toAccountId String?
+  toAccount   Account?  @relation("RecToAccount", fields: [toAccountId], references: [id])
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  /// Dia do mês (1–31, limitado ao tamanho do mês).
+  dayOfMonth  Int
+  startMonth  String
+  endMonth    String?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  transactions Transaction[]
+  skips        RecurrenceSkip[]
+
+  @@map("recurrences")
+}
+
+/// Mês em que uma recorrente foi pulada (não aconteceu).
+model RecurrenceSkip {
+  id           String     @id @default(cuid())
+  recurrenceId String
+  recurrence   Recurrence @relation(fields: [recurrenceId], references: [id], onDelete: Cascade)
+  month        String
+
+  @@unique([recurrenceId, month])
+  @@map("recurrence_skips")
+}
+
+/// Série detectada na importação que o usuário marcou como "não é parcelamento".
+model DismissedSeries {
+  key       String   @id
+  createdAt DateTime @default(now())
+
+  @@map("dismissed_series")
 }

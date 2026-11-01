@@ -36,6 +36,7 @@ export interface TxFormValues {
   projectId: string;
   installments: string;
   reimbursable: boolean;
+  reimbursedBy: string;
   note: string;
 }
 
@@ -56,6 +57,7 @@ export interface TxRow {
   installmentPlanId: string | null;
   reimbursable: boolean;
   reimbursementStatus: "PENDING" | "SETTLED" | null;
+  reimbursedBy: string | null;
   note: string | null;
   invoicePaid: boolean;
   isInvoicePayment: boolean;

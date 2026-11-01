@@ -25,3 +25,9 @@ test("toCents rounds sheet floats", () => {
   expect(toCents(538.53)).toBe(53853);
   expect(toCents(0.1 + 0.2)).toBe(30);
 });
+
+describe("parseBRL — typos comuns no celular", () => {
+  test("só centavos", () => expect(parseBRL(",50")).toBe(50));
+  test("vírgula no fim", () => expect(parseBRL("10,")).toBe(1000));
+  test("ponto no fim", () => expect(parseBRL("10.")).toBe(1000));
+});

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, FileSpreadsheet, Landmark, LayoutDashboard, ListPlus, Tags, type LucideIcon } from "lucide-react";
+import { CreditCard, FileSpreadsheet, HandCoins, Landmark, LayoutDashboard, ListPlus, Repeat, Tags, type LucideIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +25,8 @@ const ITEMS: Item[] = [
   { href: "/", label: "Painel", icon: LayoutDashboard },
   { href: "/lancamentos", label: "Lançamentos", icon: ListPlus },
   { href: "/faturas", label: "Faturas", icon: CreditCard },
+  { href: "/recorrentes", label: "Recorrentes", icon: Repeat },
+  { href: "/reembolsos", label: "Reembolsos", icon: HandCoins },
   { href: "/contas", label: "Contas", icon: Landmark },
   { href: "/categorias", label: "Categorias e projetos", icon: Tags },
   { href: "/importar", label: "Importar planilha", icon: FileSpreadsheet },

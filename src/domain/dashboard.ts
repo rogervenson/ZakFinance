@@ -9,6 +9,8 @@ export interface DashTx {
   countsInCostOfLiving: boolean;
   projectId: string | null;
   isTransferToInvestment: boolean;
+  /** Conta de benefício (Ticket): a receita não é dinheiro em conta. */
+  isBenefit: boolean;
 }
 
 export interface CategorySummary {
@@ -21,6 +23,8 @@ export interface CategorySummary {
 
 export interface MonthSummary {
   incomeCents: number;
+  /** Receitas em contas de benefício (Ticket), fora de incomeCents. */
+  benefitsCents: number;
   expenseCents: number;
   investedCents: number;
   byCategory: CategorySummary[];
@@ -36,6 +40,7 @@ export const isCostOfLiving = (t: Pick<DashTx, "type" | "countsInCostOfLiving" |
 
 export function summarizeMonth(input: { month: string; txs: DashTx[]; history: { month: string; categoryId: string; cents: number }[] }): MonthSummary {
   let incomeCents = 0;
+  let benefitsCents = 0;
   let expenseCents = 0;
   let investedCents = 0;
   let costOfLivingCents = 0;
@@ -43,7 +48,10 @@ export function summarizeMonth(input: { month: string; txs: DashTx[]; history: {
   const byProject = new Map<string, number>();
 
   for (const t of input.txs) {
-    if (t.type === "INCOME") incomeCents += t.amountCents;
+    if (t.type === "INCOME") {
+      if (t.isBenefit) benefitsCents += t.amountCents;
+      else incomeCents += t.amountCents;
+    }
     else if (t.type === "TRANSFER") {
       if (t.isTransferToInvestment) investedCents += t.amountCents;
     } else {
@@ -66,6 +74,7 @@ export function summarizeMonth(input: { month: string; txs: DashTx[]; history: {
 
   return {
     incomeCents,
+    benefitsCents,
     expenseCents,
     investedCents,
     byCategory,
@@ -93,4 +102,29 @@ export function latestPatrimony(snapshots: { month: string; assetClass: string; 
   }
   const values = [...latest.values()];
   return { month: values.map((v) => v.month).sort().at(-1)!, cents: values.reduce((sum, v) => sum + v.valueCents, 0) };
+}
+
+/** Recorrente prevista, vista pela conta corrente. */
+export interface PendingFlow {
+  type: "EXPENSE" | "INCOME" | "TRANSFER";
+  amountCents: number;
+  /** A conta da recorrente é uma conta corrente. */
+  fromChecking: boolean;
+  /** Transferência que chega numa conta corrente. */
+  toChecking: boolean;
+}
+
+/**
+ * Sobra prevista até o fim do mês: saldo em conta corrente − faturas a vencer −
+ * contas recorrentes previstas que saem da conta + receitas previstas que entram nela.
+ */
+export function plannedLeftover(input: { checkingCents: number; invoicesDueCents: number; pending: PendingFlow[] }) {
+  let out = 0;
+  let inflow = 0;
+  for (const p of input.pending) {
+    if (p.type === "INCOME" && p.fromChecking) inflow += p.amountCents;
+    else if (p.type !== "INCOME" && p.fromChecking && !(p.type === "TRANSFER" && p.toChecking)) out += p.amountCents;
+    else if (p.type === "TRANSFER" && p.toChecking && !p.fromChecking) inflow += p.amountCents;
+  }
+  return { leftoverCents: input.checkingCents - input.invoicesDueCents - out + inflow, upcomingOutCents: out, upcomingInCents: inflow };
 }

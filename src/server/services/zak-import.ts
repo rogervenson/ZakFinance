@@ -10,6 +10,7 @@ import { addMonthKey, currentMonthKey } from "@/lib/months";
 import { today } from "@/lib/dates";
 import { readWorkbook } from "@/server/import/xlsx-grid";
 import { AppError } from "@/server/errors";
+import { invoiceTotal } from "./invoices";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** A planilha é de 2026. */
@@ -160,9 +161,16 @@ export async function confirmZakImport(file: Buffer, currentMonth: string = curr
       if (data.length) await tx.transaction.createMany({ data });
 
       for (const p of todo.filter((x) => x.paysInvoiceMonth)) {
-        await tx.invoice.updateMany({ where: { id: invoiceId.get(p.paysInvoiceMonth!)!, status: { not: "PAID" } }, data: { status: "PAID", paidAt: p.date } });
+        const id = invoiceId.get(p.paysInvoiceMonth!)!;
+        // O pagamento cobre a fatura inteira, inclusive compras já lançadas à mão.
+        const total = await invoiceTotal(id, tx);
+        await tx.transaction.updateMany({ where: { importKey: p.importKey }, data: { amountCents: total } });
+        await tx.invoice.updateMany({ where: { id, status: { not: "PAID" } }, data: { status: "PAID", paidAt: p.date } });
       }
 
+      const before = await tx.account.findUniqueOrThrow({ where: { id: ctx.accounts.checking } });
+      const earlierRun = await tx.importRun.findFirst({ where: { kind: "ZAK26" }, orderBy: { createdAt: "asc" } });
+      const previousOpeningCents = earlierRun ? earlierRun.previousOpeningCents : before.openingBalanceCents;
       await tx.account.update({ where: { id: ctx.accounts.checking }, data: { openingBalanceCents: parse.checkingOpeningCents, openingDate: new Date(`${ZAK26_YEAR}-01-01T00:00:00.000Z`) } });
 
       for (const s of parse.snapshots) {
@@ -184,6 +192,7 @@ export async function confirmZakImport(file: Buffer, currentMonth: string = curr
       await tx.importRun.create({
         data: {
           kind: "ZAK26",
+          previousOpeningCents,
           fileSha256: sha256,
           report: JSON.parse(JSON.stringify(report)),
           raw: JSON.parse(JSON.stringify({ inv: parse.rawInv, geral: parse.rawGeral })),
@@ -204,6 +213,7 @@ export async function listPendingSeries(): Promise<SeriesCandidate[]> {
     where: { source: "ZAK26", type: "EXPENSE", invoiceId: { not: null }, installmentPlanId: null, importKey: { startsWith: "ZAK26:" } },
     select: { importKey: true, month: true, description: true, amountCents: true, date: true },
   });
+  const dismissed = new Set((await db.dismissedSeries.findMany()).map((d) => d.key));
   return detectSeries(
     rows
       .filter((r) => /^ZAK26:[^:]+:B\d+$/.test(r.importKey!))
@@ -217,38 +227,51 @@ export async function listPendingSeries(): Promise<SeriesCandidate[]> {
         dateIssue: false,
         payment: "CREDITO" as const,
       })),
-  );
+  ).filter((s) => !dismissed.has(s.key));
 }
 
 const monthDiff = (a: string, b: string) => (Number(b.slice(0, 4)) - Number(a.slice(0, 4))) * 12 + Number(b.slice(5)) - Number(a.slice(5));
 
 /**
- * Transforma uma série detectada em parcelamento: numera as linhas importadas pela
- * distância da 1ª fatura da compra e cria as parcelas que faltam nas próximas faturas.
+ * Transforma uma ou mais séries detectadas (juntas, quando o usuário pede) em um
+ * parcelamento: numera as linhas importadas pela distância da 1ª fatura da compra e
+ * cria as parcelas que faltam nas próximas faturas.
  */
-export async function confirmSeries(seriesKey: string, totalCount: number) {
+export async function confirmSeries(seriesKeys: string[], totalCount: number) {
   if (!Number.isInteger(totalCount) || totalCount < 2 || totalCount > 48) throw new AppError("VALIDATION", "Informe o total de parcelas (2 a 48).");
-  const series = (await listPendingSeries()).find((s) => s.key === seriesKey);
-  if (!series) throw new AppError("NOT_FOUND", "Série não encontrada ou já confirmada.");
+  const pending = await listPendingSeries();
+  const chosen = seriesKeys.map((k) => pending.find((s) => s.key === k));
+  if (chosen.length === 0 || chosen.some((s) => !s)) throw new AppError("NOT_FOUND", "Série não encontrada ou já confirmada.");
+  const series = chosen as SeriesCandidate[];
+  const importKeys = series.flatMap((s) => s.importKeys);
+  // Juntando séries, vale a data de compra mais antiga.
+  const purchaseDate = new Date(Math.min(...series.map((s) => s.purchaseDate.getTime())));
   const card = await db.account.findUniqueOrThrow({ where: { name: ACCOUNT.card } });
-  const firstMonth = invoiceMonthFor(series.purchaseDate, card.closingDay ?? 12, card.dueDay ?? 20);
-  const rows = await db.transaction.findMany({ where: { importKey: { in: series.importKeys } }, orderBy: { month: "asc" } });
+  const firstMonth = invoiceMonthFor(purchaseDate, card.closingDay ?? 12, card.dueDay ?? 20);
+  const rows = await db.transaction.findMany({ where: { importKey: { in: importKeys } }, orderBy: { month: "asc" } });
+  if (new Set(rows.map((r) => r.month)).size !== rows.length) throw new AppError("VALIDATION", "Estas séries têm duas compras no mesmo mês; não dá para juntar.");
   const numbered = rows.map((r) => ({ row: r, n: monthDiff(firstMonth, r.month) + 1 }));
-  const maxImported = Math.max(...numbered.map((x) => x.n));
-  if (maxImported > totalCount || numbered.some((x) => x.n < 1)) {
-    throw new AppError("VALIDATION", `Pela data da compra, já há parcelas até a ${maxImported}ª: o total deve ser pelo menos ${maxImported}.`);
+  if (numbered.some((x) => x.n < 1)) {
+    throw new AppError("VALIDATION", "A data da compra é posterior a uma das faturas da série. Confira a data na planilha antes de confirmar.");
   }
+  const maxImported = Math.max(...numbered.map((x) => x.n));
+  if (maxImported > totalCount) throw new AppError("VALIDATION", `Pela data da compra, já há parcelas até a ${maxImported}ª: o total deve ser pelo menos ${maxImported}.`);
   const lastMonth = rows[rows.length - 1].month;
+  const description = series[0].description;
+  const installmentCents = series[0].installmentCents;
 
   await db.$transaction(async (tx) => {
+    // Confere de novo dentro da transação (evita confirmar duas vezes ao mesmo tempo).
+    const linked = await tx.transaction.count({ where: { importKey: { in: importKeys }, installmentPlanId: { not: null } } });
+    if (linked > 0) throw new AppError("CONFLICT", "Esta série já foi confirmada.");
     const first = rows[0];
     const plan = await tx.installmentPlan.create({
       data: {
-        description: series.description,
-        installmentCents: series.installmentCents,
+        description,
+        installmentCents,
         count: totalCount,
         firstInvoiceMonth: firstMonth,
-        purchaseDate: series.purchaseDate,
+        purchaseDate,
         accountId: card.id,
         categoryId: first.categoryId!,
         projectId: first.projectId,
@@ -265,10 +288,10 @@ export async function confirmSeries(seriesKey: string, totalCount: number) {
       await tx.transaction.create({
         data: {
           type: "EXPENSE",
-          date: series.purchaseDate,
+          date: purchaseDate,
           month,
-          description: `${series.description} (${n}/${totalCount})`,
-          amountCents: series.installmentCents,
+          description: `${description} (${n}/${totalCount})`,
+          amountCents: installmentCents,
           accountId: card.id,
           categoryId: first.categoryId,
           projectId: first.projectId,
@@ -283,6 +306,11 @@ export async function confirmSeries(seriesKey: string, totalCount: number) {
   });
 }
 
+/** Marca uma série detectada como "não é parcelamento" (some da lista). */
+export async function dismissSeries(seriesKey: string) {
+  await db.dismissedSeries.upsert({ where: { key: seriesKey }, update: {}, create: { key: seriesKey } });
+}
+
 /** Remove tudo o que veio da Zak26. Lançamentos manuais ficam. */
 export async function undoZakImport() {
   await db.$transaction(
@@ -294,9 +322,10 @@ export async function undoZakImport() {
       await tx.invoice.deleteMany({ where: { items: { none: {} }, payment: null } });
       await tx.assetSnapshot.deleteMany({ where: { source: "ZAK26" } });
       await tx.holding.deleteMany({ where: { source: "ZAK26" } });
+      const firstRun = await tx.importRun.findFirst({ where: { kind: "ZAK26" }, orderBy: { createdAt: "asc" } });
       await tx.importRun.deleteMany({ where: { kind: "ZAK26" } });
       const checking = await tx.account.findUnique({ where: { name: ACCOUNT.checking } });
-      if (checking) await tx.account.update({ where: { id: checking.id }, data: { openingBalanceCents: 0 } });
+      if (checking) await tx.account.update({ where: { id: checking.id }, data: { openingBalanceCents: firstRun?.previousOpeningCents ?? 0 } });
     },
     { timeout: 120_000 },
   );

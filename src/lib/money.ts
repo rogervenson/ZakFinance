@@ -19,6 +19,9 @@ export function toCents(value: number): number {
 export function parseBRL(input: string): number | null {
   let s = input.replace(/R\$/gi, "").replace(/\s/g, "");
   if (!s || s.startsWith("-")) return null;
+  // Digitação comum no celular: ",50" e "10," / "10.".
+  if (/^[.,]\d{1,2}$/.test(s)) s = "0" + s;
+  if (/^\d+[.,]$/.test(s)) s = s.slice(0, -1);
   if (s.includes(",")) {
     s = s.replace(/\./g, "").replace(",", ".");
   } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {

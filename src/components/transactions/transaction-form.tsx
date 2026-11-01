@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createTransactionAction, updateTransactionAction } from "@/server/actions/transactions";
@@ -27,6 +27,7 @@ export function emptyValues(options: EntryOptions): TxFormValues {
     projectId: "",
     installments: "1",
     reimbursable: false,
+    reimbursedBy: "",
     note: "",
   };
 }
@@ -56,6 +57,25 @@ export function TransactionForm({
   const touched = useRef({ categoryId: !!initial, accountId: !!initial });
   const descriptionRef = useRef<HTMLInputElement>(null);
   const prefix = editId ? `edit-${editId}` : `new-${layout}`;
+
+  // Aba aberta de um dia para o outro: a data padrão acompanha o dia (se não foi mudada).
+  const defaultDate = useRef(options.today);
+  useEffect(() => {
+    if (editId) return;
+    const refresh = () => {
+      const now = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+      if (now === defaultDate.current) return;
+      const old = defaultDate.current;
+      defaultDate.current = now;
+      setValues((v) => (v.date === old ? { ...v, date: now } : v));
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [editId]);
 
   const account = options.accounts.find((a) => a.id === values.accountId);
   const isCard = account?.type === "CREDIT_CARD" && values.type === "EXPENSE";
@@ -102,7 +122,7 @@ export function TransactionForm({
       }
       // Mantém data, tipo e conta para o próximo lançamento.
       touched.current = { categoryId: false, accountId: false };
-      setValues((v) => ({ ...v, description: "", amount: "", installments: "1", categoryId: "", projectId: "", reimbursable: false, note: "" }));
+      setValues((v) => ({ ...v, description: "", amount: "", installments: "1", categoryId: "", projectId: "", reimbursable: false, reimbursedBy: "", note: "" }));
       descriptionRef.current?.focus();
       onDone?.();
     });
@@ -231,6 +251,9 @@ export function TransactionForm({
             <Label htmlFor={id("reimbursable")}>Reembolsável</Label>
           </div>
         )}
+        {values.type === "EXPENSE" &&
+          values.reimbursable &&
+          field("reimbursedBy", "Quem reembolsa", <Input id={id("reimbursedBy")} value={values.reimbursedBy} onChange={(e) => set("reimbursedBy", e.target.value)} />)}
         {layout === "stacked" &&
           field("note", "Observação", <Input id={id("note")} value={values.note} onChange={(e) => set("note", e.target.value)} />, "col-span-2")}
       </div>

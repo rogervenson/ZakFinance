@@ -81,7 +81,12 @@ function DeleteDialog({ row, onClose }: { row: TxRow; onClose: () => void }) {
     startTransition(async () => {
       const res = await deleteTransactionAction(row.id, whole);
       if (!res.ok) toast.error(res.error);
-      else toast.success(res.data > 1 ? `${res.data} parcelas excluídas.` : "Lançamento excluído.");
+      else {
+        const { deleted, kept } = res.data;
+        toast.success(
+          deleted > 1 ? `${deleted} parcelas excluídas.${kept ? ` ${kept} já pagas foram mantidas.` : ""}` : `Lançamento excluído.${kept ? ` ${kept} parcelas já pagas foram mantidas.` : ""}`,
+        );
+      }
       onClose();
     });
   return (
@@ -212,6 +217,7 @@ export function TransactionList({ rows, options, totalCents, incomeCents, count 
                 projectId: editing.projectId ?? "",
                 installments: "1",
                 reimbursable: editing.reimbursable,
+                reimbursedBy: editing.reimbursedBy ?? "",
                 note: editing.note ?? "",
               }}
             />

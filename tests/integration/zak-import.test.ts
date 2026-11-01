@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import ExcelJS from "exceljs";
 import { db } from "@/server/db";
-import { confirmSeries, confirmZakImport, listPendingSeries, previewZakImport, undoZakImport } from "@/server/services/zak-import";
+import { confirmSeries, confirmZakImport, dismissSeries, listPendingSeries, previewZakImport, undoZakImport } from "@/server/services/zak-import";
 import { createTransaction } from "@/server/services/transactions";
 import { colLetter, type Grid } from "@/domain/zak26/grid";
-import { geral, inv, OUT, sctSheet } from "../unit/fixtures/zak26-grid";
+import { geral, inv, monthSheet, OUT, sctSheet } from "../unit/fixtures/zak26-grid";
 import { ids, wipeTransactions } from "./helpers";
 
 async function workbook(grids: Grid[]): Promise<Buffer> {
@@ -71,7 +71,7 @@ describe("Zak26 import", () => {
     const [series] = await listPendingSeries();
     expect(series.description).toBe("SCT");
     // Compra 20/11/2025, fecha dia 12 → 1ª parcela na fatura de dez/2025; jan, fev, mar = parcelas 2, 3, 4.
-    await confirmSeries(series.key, 6);
+    await confirmSeries([series.key], 6);
     const rows = await db.transaction.findMany({ where: { installmentPlanId: { not: null } }, orderBy: { month: "asc" } });
     expect(rows.map((r) => [r.month, r.installmentNumber])).toEqual([
       ["2026-01", 2],
@@ -87,6 +87,43 @@ describe("Zak26 import", () => {
   test("a total smaller than the installments already imported is rejected", async () => {
     await confirmZakImport(file, NOW);
     const [series] = await listPendingSeries();
-    await expect(confirmSeries(series.key, 3)).rejects.toThrow("pelo menos 4");
+    await expect(confirmSeries([series.key], 3)).rejects.toThrow("pelo menos 4");
+  });
+});
+
+describe("import review leftovers", () => {
+  test("undo restores the opening balance that existed before the import", async () => {
+    const I = await ids();
+    await db.account.update({ where: { id: I.checking }, data: { openingBalanceCents: 12345 } });
+    await confirmZakImport(file, NOW);
+    await confirmZakImport(file, NOW);
+    await undoZakImport();
+    expect((await db.account.findUniqueOrThrow({ where: { id: I.checking } })).openingBalanceCents).toBe(12345);
+  });
+
+  test("a manual card purchase already in a past invoice is included in the imported payment", async () => {
+    const I = await ids();
+    await createTransaction({ type: "EXPENSE", date: "2026-09-20", description: "manual", amount: "10", accountId: I.card, categoryId: I.cat("Mercado") });
+    await confirmZakImport(file, NOW);
+    const oct = await db.invoice.findUniqueOrThrow({ where: { accountId_month: { accountId: I.card, month: "2026-10" } }, include: { payment: true } });
+    const { invoiceTotal } = await import("@/server/services/invoices");
+    expect(oct.payment!.amountCents).toBe(await invoiceTotal(oct.id));
+  });
+
+  test("series can be merged, and dismissed series stop showing", async () => {
+    await confirmZakImport(file, NOW);
+    const [sct] = await listPendingSeries();
+    await dismissSeries(sct.key);
+    expect(await listPendingSeries()).toHaveLength(0);
+  });
+
+  test("confirming two series together numbers all rows as one plan", async () => {
+    const two = await workbook([sctSheet("Jan"), sctSheet("Fev"), monthSheet("Mar", { A172: "SCT", B172: 933.33, C172: new Date("2026-03-20T00:00:00Z") }, { 190: 933.33 }), monthSheet("Abr", { A172: "SCT", B172: 933.33, C172: new Date("2026-03-20T00:00:00Z") }, { 190: 933.33 }), geral, inv]);
+    await confirmZakImport(two, NOW);
+    const pending = await listPendingSeries();
+    expect(pending).toHaveLength(2);
+    await confirmSeries(pending.map((p) => p.key), 6);
+    const rows = await db.transaction.findMany({ where: { installmentPlanId: { not: null } }, orderBy: { month: "asc" } });
+    expect(rows.map((r) => r.installmentNumber)).toEqual([2, 3, 4, 5, 6]);
   });
 });

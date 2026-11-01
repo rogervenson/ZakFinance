@@ -13,12 +13,9 @@ const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.
 const OPENING_DATE = new Date("2026-01-01T00:00:00.000Z");
 
 async function main() {
-  for (const a of DEFAULT_ACCOUNTS) {
-    await db.account.upsert({
-      where: { name: a.name },
-      update: {},
-      create: { ...a, openingDate: OPENING_DATE },
-    });
+  // Contas e projetos padrão só num banco vazio: se o Zak renomear um, ele não volta.
+  if ((await db.account.count()) === 0) {
+    for (const a of DEFAULT_ACCOUNTS) await db.account.create({ data: { ...a, openingDate: OPENING_DATE } });
   }
   for (const [i, c] of EXPENSE_CATEGORIES.entries()) {
     await db.category.upsert({
@@ -34,8 +31,8 @@ async function main() {
       create: { name: c.name, kind: "INCOME", countsInCostOfLiving: false, continuesAfterRetirement: c.continuesAfterRetirement, sortOrder: i },
     });
   }
-  for (const name of DEFAULT_PROJECTS) {
-    await db.project.upsert({ where: { name }, update: {}, create: { name } });
+  if ((await db.project.count()) === 0) {
+    for (const name of DEFAULT_PROJECTS) await db.project.create({ data: { name } });
   }
 
   if ((await db.user.count()) === 0) {
