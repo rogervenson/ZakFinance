@@ -74,7 +74,7 @@ describe("reimbursements", () => {
 });
 
 describe("review leftovers", () => {
-  const card3x = () => ({ type: "EXPENSE", date: "2026-10-13", description: "Notebook", amount: "300,00", accountId: I.card, categoryId: I.cat("Despesas"), installments: 3 });
+  const card3x = () => ({ type: "EXPENSE", date: "2026-10-15", description: "Notebook", amount: "300,00", accountId: I.card, categoryId: I.cat("Despesas"), installments: 3 });
 
   test("deleting the whole plan keeps installments in paid invoices and removes the rest", async () => {
     const [first] = await createTransaction(card3x());

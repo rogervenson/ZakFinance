@@ -35,7 +35,7 @@ Abra **http://localhost:3000**. No primeiro `npm run setup` o usuário é criado
 
 ## Primeiros passos
 
-1. **Contas:** confira o dia de fechamento e de vencimento do Cartão Santander (o padrão é fecha 12, vence 20).
+1. **Contas:** confira o dia de fechamento e de vencimento do Cartão Santander (o padrão é fecha 14, vence 21, como na fatura do Santander).
 2. **Importar planilha:** no Google Sheets, *Arquivo → Fazer download → Microsoft Excel (.xlsx)*; envie em *Importar planilha*, confira a prévia e clique em *Importar*. Depois confirme o total de parcelas das compras parceladas detectadas. A importação pode ser desfeita.
 3. **Contas → Ajustar saldo:** confira o saldo real da conta; a diferença vira um lançamento "Ajuste de saldo".
 4. A partir daí, lance o dia em **Lançamentos** (Enter salva e já prepara o próximo).

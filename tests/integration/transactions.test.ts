@@ -13,7 +13,7 @@ beforeEach(async () => {
 
 const cardPurchase = (over: Record<string, unknown> = {}) => ({
   type: "EXPENSE",
-  date: "2026-10-13",
+  date: "2026-10-15",
   description: "Farmácia",
   amount: "300,00",
   accountId: I.card,
@@ -107,7 +107,7 @@ describe("other transactions", () => {
 describe("review fixes", () => {
   test("a refund on the card goes into the invoice and reduces its total", async () => {
     const [buy] = await createTransaction(cardPurchase({ amount: "300,00" }));
-    const [refund] = await createTransaction({ type: "INCOME", date: "2026-10-14", description: "Estorno", amount: "50,00", accountId: I.card, categoryId: I.cat("Estorno", "INCOME") });
+    const [refund] = await createTransaction({ type: "INCOME", date: "2026-10-16", description: "Estorno", amount: "50,00", accountId: I.card, categoryId: I.cat("Estorno", "INCOME") });
     expect(refund.invoiceId).toBe(buy.invoiceId);
     expect(await invoiceTotal(buy.invoiceId!)).toBe(25000);
   });
