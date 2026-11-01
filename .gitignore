@@ -63,3 +63,6 @@ next-env.d.ts
 
 # logs locais
 *.log
+
+# rascunhos locais
+/.tmp
