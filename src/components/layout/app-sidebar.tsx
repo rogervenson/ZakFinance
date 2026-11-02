@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, FileSpreadsheet, Landmark, LayoutDashboard, ListPlus, Tags, TrendingUp, type LucideIcon } from "lucide-react";
+import { CreditCard, FileSpreadsheet, Landmark, LayoutDashboard, ListPlus, Tags, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -16,7 +16,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { APP_NAME, LogoMark } from "./logo";
+import { APP_NAME } from "./logo";
 import { UserMenu } from "./user-menu";
 
 type Item = { href: string; label: string; icon: LucideIcon };
@@ -26,7 +26,7 @@ const ITEMS: Item[] = [
   { href: "/lancamentos", label: "Lançamentos", icon: ListPlus },
   { href: "/faturas", label: "Faturas", icon: CreditCard },
   { href: "/investimentos", label: "Investimentos", icon: TrendingUp },
-  { href: "/contas", label: "Contas", icon: Landmark },
+  { href: "/contas", label: "Contas", icon: Wallet },
   { href: "/categorias", label: "Categorias e projetos", icon: Tags },
   { href: "/importar", label: "Importar", icon: FileSpreadsheet },
 ];
@@ -38,10 +38,12 @@ export function AppSidebar({ user }: { user: { name: string; email: string } }) 
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="h-14 justify-center">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-2.5 px-1 group-data-[collapsible=icon]:px-0">
-          <LogoMark />
-          <span className="truncate text-[15px] font-semibold tracking-tight group-data-[collapsible=icon]:hidden">{APP_NAME}</span>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[4px] bg-sidebar-primary text-sidebar-primary-foreground">
+            <Landmark className="size-4" />
+          </span>
+          <span className="truncate text-[15px] font-semibold tracking-tight text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden">{APP_NAME}</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>

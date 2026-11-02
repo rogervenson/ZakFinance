@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Coins, Plus, RefreshCw, Undo2 } from "luc
 import { toast } from "sonner";
 import { deleteOperationAction, refreshQuotesAction } from "@/server/actions/investments";
 import { KIND_LABEL, type AssetKind, type HoldingView } from "@/domain/investments";
+import { StatCard } from "@/components/stat-card";
 import { formatBRL } from "@/lib/money";
 import { formatShortDate } from "@/lib/format";
 import { monthLabel } from "@/lib/months";
@@ -40,19 +41,8 @@ interface Props {
 }
 
 const pct = (v: number | null) => (v === null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`);
-const tone = (v: number | null) => (v === null || v === 0 ? "" : v > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive");
+const tone = (v: number | null) => (v === null || v === 0 ? "" : v > 0 ? "text-gain" : "text-loss");
 
-function Stat({ label, value, hint, className }: { label: string; value: string; hint?: React.ReactNode; className?: string }) {
-  return (
-    <Card>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={cn("mt-1 text-2xl font-semibold tracking-tight tabular-nums", className)}>{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export function InvestmentsView({ today, currentMonth, classes, accounts, portfolio, snapshots }: Props) {
   const [dialog, setDialog] = useState<{ kind: "op" | "div"; ticker?: string } | { kind: "snap" } | null>(null);
@@ -103,14 +93,14 @@ export function InvestmentsView({ today, currentMonth, classes, accounts, portfo
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Carteira (ações, FIIs, ETF)" value={formatBRL(t.valueCents)} hint={`investido ${formatBRL(t.investedCents)}`} />
-        <Stat label="Valorização" value={formatBRL(t.gainCents)} className={tone(t.gainCents)} hint={pct(t.investedCents ? t.gainCents / t.investedCents : null)} />
-        <Stat
+        <StatCard label="Carteira (ações, FIIs, ETF)" value={formatBRL(t.valueCents)} hint={`investido ${formatBRL(t.investedCents)}`} />
+        <StatCard label="Valorização" value={formatBRL(t.gainCents)} valueClassName={tone(t.gainCents)} hint={pct(t.investedCents ? t.gainCents / t.investedCents : null)} />
+        <StatCard
           label="Proventos recebidos"
           value={formatBRL(t.dividendsCents)}
           hint={`retorno com proventos ${pct(t.investedCents ? (t.gainCents + t.dividendsCents) / t.investedCents : null)}`}
         />
-        <Stat
+        <StatCard
           label="Patrimônio total"
           value={last ? formatBRL(last.totalCents) : "—"}
           hint={

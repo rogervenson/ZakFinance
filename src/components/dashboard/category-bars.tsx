@@ -34,9 +34,9 @@ export function CategoryBars({ rows }: { rows: Row[] }) {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 min-w-0 flex-1">
+              <div className="h-2.5 min-w-0 flex-1 rounded-[2px] bg-muted">
                 <div
-                  className="h-3 rounded-r-[4px] bg-chart-1 transition-opacity group-hover:opacity-80"
+                  className="h-2.5 rounded-[2px] bg-chart-1 transition-opacity group-hover:opacity-80"
                   style={{ width: `${Math.max(1, (r.cents / max) * 100)}%` }}
                   role="img"
                   aria-label={title}

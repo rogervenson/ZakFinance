@@ -69,3 +69,4 @@ next-env.d.ts
 
 # extratos e faturas reais (nunca commitar)
 *.pdf
+scripts/*.local.mjs

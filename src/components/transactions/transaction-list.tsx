@@ -175,7 +175,7 @@ export function TransactionList({ rows, options, totalCents, incomeCents, count 
                 </td>
                 <td className="hidden px-3 py-2 md:table-cell">{r.categoryName ?? (r.toAccountName ? `→ ${r.toAccountName}` : "—")}</td>
                 <td className="hidden px-3 py-2 md:table-cell">{r.accountName}</td>
-                <td className={cn("px-3 py-2 text-right whitespace-nowrap tabular-nums", r.type === "INCOME" && "text-emerald-600 dark:text-emerald-400")}>
+                <td className={cn("px-3 py-2 text-right whitespace-nowrap tabular-nums", r.type === "INCOME" && "text-gain")}>
                   {sign(r)}
                   {formatBRL(r.amountCents)}
                 </td>

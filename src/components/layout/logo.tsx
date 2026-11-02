@@ -1,11 +1,11 @@
-import { Wallet } from "lucide-react";
+import { Landmark } from "lucide-react";
 
 export const APP_NAME = "ZakFinance";
 
 export function LogoMark() {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-      <Wallet className="size-4" />
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-[4px] bg-primary text-primary-foreground">
+      <Landmark className="size-4" />
     </span>
   );
 }

@@ -210,7 +210,7 @@ export function StatementImport({ options }: { options: EntryOptions }) {
                             </span>
                           )}
                         </td>
-                        <td className={cn("px-2 py-1.5 text-right whitespace-nowrap tabular-nums", r.amountCents > 0 && isAccount && "text-emerald-600 dark:text-emerald-400")}>
+                        <td className={cn("px-2 py-1.5 text-right whitespace-nowrap tabular-nums", r.amountCents > 0 && isAccount && "text-gain")}>
                           {formatBRL(r.amountCents)}
                         </td>
                         <td className="px-2 py-1.5">

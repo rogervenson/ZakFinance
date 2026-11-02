@@ -25,10 +25,10 @@ export function PatrimonyChart({ data }: { data: { month: string; totalCents: nu
           />
           <Tooltip
             cursor={{ stroke: "var(--border)" }}
-            contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--popover-foreground)", fontSize: 13 }}
+            contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--popover-foreground)", fontSize: 13 }}
             formatter={(v) => [formatBRL(Math.round(Number(v) * 100)), "Total"]}
           />
-          <Line isAnimationActive={false} type="monotone" dataKey="total" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4, strokeWidth: 2, stroke: "var(--card)", fill: "var(--chart-1)" }} activeDot={{ r: 5 }} />
+          <Line isAnimationActive={false} type="linear" dataKey="total" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: "var(--chart-1)" }} activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }} />
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -197,7 +197,7 @@ export function RecurrencesView({ recurrences, options, currentMonth }: { recurr
                 </td>
                 <td className="hidden px-3 py-2 md:table-cell">{r.categoryName ?? (r.toAccountName ? `→ ${r.toAccountName}` : "—")}</td>
                 <td className="hidden px-3 py-2 md:table-cell">{r.accountName}</td>
-                <td className={cn("px-3 py-2 text-right tabular-nums", r.type === "INCOME" && "text-emerald-600 dark:text-emerald-400")}>{formatBRL(r.amountCents)}</td>
+                <td className={cn("px-3 py-2 text-right tabular-nums", r.type === "INCOME" && "text-gain")}>{formatBRL(r.amountCents)}</td>
                 <td className="px-1 py-1 text-right whitespace-nowrap">
                   <Button variant="ghost" size="icon" aria-label="Editar" onClick={() => setEditing(r)}>
                     <Pencil />
