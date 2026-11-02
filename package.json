@@ -11,6 +11,7 @@
     "db": "node scripts/db-server.mjs",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "reset-password": "node scripts/reset-password.mjs",
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "setup": "prisma generate && prisma migrate deploy && prisma db seed",
     "postinstall": "prisma generate",
