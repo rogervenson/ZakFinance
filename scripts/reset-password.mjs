@@ -18,7 +18,7 @@ const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
 try {
   const hash = await bcrypt.hash(password, 12);
-  const { rows } = await client.query('update users set "passwordHash" = $1, "mustChangePassword" = false where lower(email) = $2 returning id', [hash, email]);
+  const { rows } = await client.query('update users set "passwordHash" = $1, "mustChangePassword" = false, "failedLoginCount" = 0, "lockedUntil" = null where lower(email) = $2 returning id', [hash, email]);
   if (rows.length === 0) {
     console.error(`Nenhum usuário com o e-mail ${email}. Nada foi alterado.`);
     process.exitCode = 1;
