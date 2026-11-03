@@ -71,8 +71,7 @@ Para redefinir o acesso pelo próprio Railway:
 3. Entre com esse e-mail e senha e escolha a nova senha.
 4. **Apague a variável `ADMIN_RESET`** (senão o acesso é redefinido a cada deploy).
 
-Ou, pelo computador, 
-Com a `DATABASE_PUBLIC_URL` do Railway:
+Ou, pelo computador, com a `DATABASE_PUBLIC_URL` do Railway:
 
 ```
 set DATABASE_URL=COLE_AQUI_A_DATABASE_PUBLIC_URL
