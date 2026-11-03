@@ -60,8 +60,18 @@ Depois disso, use só o app publicado. Rodar o `copy-data` de novo **sobrescreve
 
 Cada `git push` na `main` publica sozinho; as migrations rodam no start.
 
-## Esqueci a senha
+## Não consigo entrar (troquei o e-mail, esqueci a senha)
 
+`ADMIN_EMAIL` e `ADMIN_PASSWORD` só criam o usuário no primeiro start, com o banco vazio. Trocar depois não muda nada — o log do deploy mostra o login atual na linha `[seed] Login: ...`.
+
+Para redefinir o acesso pelo próprio Railway:
+
+1. Em **Variables**, defina `ADMIN_EMAIL`, `ADMIN_PASSWORD` (10+ caracteres) e `ADMIN_RESET` = `1`.
+2. Espere o redeploy; o log mostra `[seed] ADMIN_RESET: acesso redefinido para ...`.
+3. Entre com esse e-mail e senha e escolha a nova senha.
+4. **Apague a variável `ADMIN_RESET`** (senão o acesso é redefinido a cada deploy).
+
+Ou, pelo computador, 
 Com a `DATABASE_PUBLIC_URL` do Railway:
 
 ```

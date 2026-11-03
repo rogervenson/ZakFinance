@@ -44,6 +44,27 @@ async function main() {
     console.log(`        e-mail: ${email}`);
     if (!process.env.ADMIN_PASSWORD) console.log(`        senha:  ${password}   (troca obrigatória no primeiro acesso)`);
   }
+  // Recuperar acesso: com ADMIN_RESET=1, o e-mail e a senha do único usuário passam a ser
+  // ADMIN_EMAIL / ADMIN_PASSWORD (troca de senha obrigatória). Tire a variável depois de entrar.
+  if (process.env.ADMIN_RESET === "1") {
+    const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const password = process.env.ADMIN_PASSWORD;
+    const users = await db.user.findMany({ select: { id: true } });
+    if (!email || !password || password.length < 10) {
+      console.log("[seed] ADMIN_RESET ignorado: defina ADMIN_EMAIL e ADMIN_PASSWORD (10+ caracteres).");
+    } else if (users.length !== 1) {
+      console.log(`[seed] ADMIN_RESET ignorado: há ${users.length} usuários; só funciona com um.`);
+    } else {
+      await db.user.update({
+        where: { id: users[0].id },
+        data: { email, passwordHash: await bcrypt.hash(password, 12), mustChangePassword: true, failedLoginCount: 0, lockedUntil: null },
+      });
+      await db.session.deleteMany({});
+      console.log(`[seed] ADMIN_RESET: acesso redefinido para ${email}. Remova ADMIN_RESET das variáveis depois de entrar.`);
+    }
+  }
+  const emails = (await db.user.findMany({ select: { email: true } })).map((u) => u.email);
+  console.log(`[seed] Login: ${emails.join(", ")}`);
   console.log("[seed] Configuração base pronta.");
 }
 
